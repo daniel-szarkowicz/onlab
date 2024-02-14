@@ -1,4 +1,5 @@
 #pragma once
+#include <glm/glm.hpp>
 
 class Context {
     Context() = delete;
@@ -18,11 +19,14 @@ public:
     }
     static void uninit();
 
+    static double delta();
+    static double fps();
+
+    static glm::vec<2, double> mouse_position();
+    static glm::vec<2, double> mouse_position_change();
+
     static bool key_pressed[];
+    static bool key_just_pressed[];
     static void grab_mouse();
     static void release_mouse();
-    static double mouse_x;
-    static double mouse_y;
-    static double mouse_dx;
-    static double mouse_dy;
 };

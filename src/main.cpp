@@ -67,18 +67,15 @@ int main() {
     } else {
       ImGui::Text("Press Escape to grab mouse");
     }
-    ImGui::Text("Mouse x: %f", Context::mouse_x);
-    ImGui::Text("Mouse y: %f", Context::mouse_y);
-    ImGui::Text("Mouse dx: %f", Context::mouse_dx);
-    ImGui::Text("Mouse dy: %f", Context::mouse_dy);
+    ImGui::Text("FPS: %2.2f", Context::fps());
     ImGui::End();
 
-    float speed = 1.0/60.0 * 3; // 3 m/s
+    double speed = 3;
     if (Context::key_pressed[GLFW_KEY_LEFT_CONTROL]) {
       speed *= 2;
     }
 
-    if (Context::key_pressed[GLFW_KEY_CAPS_LOCK]) {
+    if (Context::key_just_pressed[GLFW_KEY_CAPS_LOCK]) {
       if (mousegrab) {
         Context::release_mouse();
         mousegrab = false;
@@ -89,19 +86,20 @@ int main() {
     }
 
     if (mousegrab) {
-      camera.yaw -= Context::mouse_dx / 10;
-      camera.pitch -= Context::mouse_dy / 10;
+      camera.yaw -= Context::mouse_position_change().x / 10;
+      camera.pitch -= Context::mouse_position_change().y / 10;
       camera.pitch = std::clamp(camera.pitch, -89.99999f, 89.99999f);
     }
 
-    glm::vec3 dir(0, 0, 0);
+    glm::vec<3, double> dir(0, 0, 0);
+    if (Context::key_pressed[GLFW_KEY_W])          dir.x += 1;
     if (Context::key_pressed[GLFW_KEY_S])          dir.x -= 1;
     if (Context::key_pressed[GLFW_KEY_A])          dir.z -= 1;
     if (Context::key_pressed[GLFW_KEY_D])          dir.z += 1;
     if (Context::key_pressed[GLFW_KEY_LEFT_SHIFT]) dir.y -= 1;
     if (Context::key_pressed[GLFW_KEY_SPACE])      dir.y += 1;
     if (glm::length(dir) > 0) {
-      camera.move_facing(glm::normalize(dir) * speed);
+      camera.move_facing(glm::normalize(dir) * speed * Context::delta());
     }
 
     glProgramUniformMatrix4fv(shader_program, view_uniform, 1, GL_FALSE, glm::value_ptr(camera.view()));

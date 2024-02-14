@@ -1,5 +1,6 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include "context.hpp"
@@ -12,11 +13,14 @@ static GLFWwindow* window = NULL;
 static bool imgui = false;
 static bool imgui_glfw = false;
 static bool imgui_opengl = false;
+static double prev_time;
+static double curr_time;
+static glm::vec<2, double> mouse_pos;
+static glm::vec<2, double> mouse_change;
+static int w_width;
+static int w_height;
 bool Context::key_pressed[GLFW_KEY_LAST];
-double Context::mouse_x;
-double Context::mouse_y;
-double Context::mouse_dx;
-double Context::mouse_dy;
+bool Context::key_just_pressed[GLFW_KEY_LAST];
 // key pressed, just pressed, just released
 // mouse buttons pressed, just pressed, just released
 // mouse pos, delta
@@ -45,12 +49,15 @@ static void framebuffer_size_callback(GLFWwindow* window, int width,
                                       int height) {
     (void)window;
     glViewport(0, 0, width, height);
+    w_width = width;
+    w_height = height;
 }
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action,
                           int mods) {
     if (action == GLFW_PRESS) {
         Context::key_pressed[key] = true;
+        Context::key_just_pressed[key] = true;
     } else if (action == GLFW_RELEASE) {
         Context::key_pressed[key] = false;
     }
@@ -79,6 +86,8 @@ void Context::init(int window_width, int window_height, const char* title) {
         glfwMakeContextCurrent(window);
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
         glfwSetKeyCallback(window, key_callback);
+        w_width = window_width;
+        w_height = window_height;
     }
 
     if (!imgui) {
@@ -121,18 +130,24 @@ void Context::frame_start() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    double x, y;
-    glfwGetCursorPos(window, &x, &y);
-    mouse_dx = x - mouse_x;
-    mouse_dy = y - mouse_y;
-    mouse_x = x;
-    mouse_y = y;
+    glm::vec<2, double> mp;
+    glfwGetCursorPos(window, &mp.x, &mp.y);
+    mouse_change = mp - mouse_pos;
+    mouse_pos = mp;
+
+    prev_time = curr_time;
+    curr_time = std::chrono::duration_cast<
+        std::chrono::duration<double, std::ratio<1, 1>>>(
+        std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 }
 
 void Context::frame_end() {
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(window);
+    for (auto& key : key_just_pressed) {
+        key = false;
+    }
 }
 
 void Context::uninit() {
@@ -162,6 +177,22 @@ void Context::uninit() {
     }
 }
 
+double Context::delta() {
+    return curr_time - prev_time;
+}
+
+double Context::fps() {
+    return 1/delta();
+}
+
+glm::vec<2, double> Context::mouse_position() {
+    return mouse_pos;
+}
+
+glm::vec<2, double> Context::mouse_position_change() {
+    return mouse_change;
+}
+
 void Context::grab_mouse() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
@@ -169,6 +200,7 @@ void Context::grab_mouse() {
 
 void Context::release_mouse() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetCursorPos(window, w_width/2.0, w_height/2.0);
     ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
 }
 
