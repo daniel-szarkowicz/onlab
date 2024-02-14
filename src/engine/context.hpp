@@ -17,4 +17,12 @@ public:
         }
     }
     static void uninit();
+
+    static bool key_pressed[];
+    static void grab_mouse();
+    static void release_mouse();
+    static double mouse_x;
+    static double mouse_y;
+    static double mouse_dx;
+    static double mouse_dy;
 };

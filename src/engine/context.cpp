@@ -12,6 +12,14 @@ static GLFWwindow* window = NULL;
 static bool imgui = false;
 static bool imgui_glfw = false;
 static bool imgui_opengl = false;
+bool Context::key_pressed[GLFW_KEY_LAST];
+double Context::mouse_x;
+double Context::mouse_y;
+double Context::mouse_dx;
+double Context::mouse_dy;
+// key pressed, just pressed, just released
+// mouse buttons pressed, just pressed, just released
+// mouse pos, delta
 
 static void GLAPIENTRY message_callback(GLenum source, GLenum type, GLuint id,
                                         GLenum severity, GLsizei length,
@@ -39,6 +47,15 @@ static void framebuffer_size_callback(GLFWwindow* window, int width,
     glViewport(0, 0, width, height);
 }
 
+static void key_callback(GLFWwindow* window, int key, int scancode, int action,
+                          int mods) {
+    if (action == GLFW_PRESS) {
+        Context::key_pressed[key] = true;
+    } else if (action == GLFW_RELEASE) {
+        Context::key_pressed[key] = false;
+    }
+}
+
 void Context::init(int window_width, int window_height, const char* title) {
     atexit(Context::uninit);
 
@@ -61,6 +78,7 @@ void Context::init(int window_width, int window_height, const char* title) {
         }
         glfwMakeContextCurrent(window);
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+        glfwSetKeyCallback(window, key_callback);
     }
 
     if (!imgui) {
@@ -68,6 +86,7 @@ void Context::init(int window_width, int window_height, const char* title) {
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
         ImGui::StyleColorsDark();
         imgui = true;
     }
@@ -102,6 +121,12 @@ void Context::frame_start() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+    double x, y;
+    glfwGetCursorPos(window, &x, &y);
+    mouse_dx = x - mouse_x;
+    mouse_dy = y - mouse_y;
+    mouse_x = x;
+    mouse_y = y;
 }
 
 void Context::frame_end() {
@@ -136,3 +161,14 @@ void Context::uninit() {
         glfw = false;
     }
 }
+
+void Context::grab_mouse() {
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
+}
+
+void Context::release_mouse() {
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+}
+

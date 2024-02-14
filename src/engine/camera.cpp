@@ -45,9 +45,38 @@ glm::vec3 FirstPersonCamera::position() {
   return pos;
 }
 
+glm::mat4 FirstPersonCamera::facing_rotation() {
+  return glm::rotate(glm::mat4(1.0f), glm::radians(yaw), glm::vec3(0, 1, 0));
+}
+
 glm::vec3 FirstPersonCamera::look_at() {
   glm::mat4 rot = glm::mat4(1.0f);
   rot = glm::rotate(rot, glm::radians(yaw), glm::vec3(0, 1, 0));
   rot = glm::rotate(rot, glm::radians(pitch), glm::vec3(0, 0, 1));
   return pos + glm::vec3(rot * glm::vec4(1, 0, 0, 1));
 }
+
+void FirstPersonCamera::move_forward(float distance) {
+  pos += glm::vec3(facing_rotation() * glm::vec4(distance, 0, 0, 1));
+}
+
+void FirstPersonCamera::move_backward(float distance) {
+  pos += glm::vec3(facing_rotation() * glm::vec4(-distance, 0, 0, 1));
+}
+
+void FirstPersonCamera::move_left(float distance) {
+  pos += glm::vec3(facing_rotation() * glm::vec4(0, 0, -distance, 1));
+}
+
+void FirstPersonCamera::move_right(float distance) {
+  pos += glm::vec3(facing_rotation() * glm::vec4(0, 0, distance, 1));
+}
+
+void FirstPersonCamera::move_up(float distance) {
+  pos.y += distance;
+}
+
+void FirstPersonCamera::move_down(float distance) {
+  pos.y -= distance;
+}
+

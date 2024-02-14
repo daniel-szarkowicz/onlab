@@ -2,10 +2,13 @@
 #include "engine/imgui/imgui.h"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <algorithm>
+#include <glm/common.hpp>
 #include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include "engine/camera.hpp"
+#include <GLFW/glfw3.h>
 
 GLuint create_shader_program();
 
@@ -33,19 +36,20 @@ int main() {
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, 6*sizeof(float), (void*)(3*sizeof(float)));
 
   glm::vec3 points[][2] = {
-    {{100, -5, 100}, {1, 1, 1}},
-    {{100, -5, -100}, {1, 1, 1}},
-    {{-100, -5, 100}, {1, 1, 1}},
-    {{-100, -5, -100}, {1, 1, 1}},
-    {{-100, -5, 100}, {1, 1, 1}},
-    {{100, -5, -100}, {1, 1, 0}},
-    {{10, 10, -10}, {1, 0, 0}},
-    {{10, -10, 10}, {1, 0, 0}},
-    {{-10, 10, 10}, {1, 0, 0}},
+    {{100, 0, 100}, {1, 1, 1}},
+    {{100, 0, -100}, {1, 1, 1}},
+    {{-100, 0, 100}, {1, 1, 1}},
+    {{-100, 0, -100}, {1, 1, 0}},
+    {{-100, 0, 100}, {1, 1, 0}},
+    {{100, 0, -100}, {1, 1, 0}},
+    {{1, 1, -1}, {1, 0, 0}},
+    {{1, -1, 1}, {1, 0, 0}},
+    {{-1, 1, 1}, {1, 0, 0}},
   };
   glNamedBufferData(vbo, sizeof(points), points, GL_STATIC_DRAW);
+  bool mousegrab = false;
 
-  auto camera = FirstPersonCamera({0, 0, 0}, 0, 0);
+  auto camera = FirstPersonCamera({0, 1.5, 0}, 0, 0);
 
   Context::loop([&]() {
     glClearColor(0.3, 0.6, 0.9, 1.0);
@@ -57,7 +61,56 @@ int main() {
     ImGui::DragFloat3("camera position", glm::value_ptr(camera.pos));
     ImGui::DragFloat("camera yaw", &camera.yaw);
     ImGui::DragFloat("camera pitch", &camera.pitch);
+    if (mousegrab) {
+      ImGui::Text("Press Escape to release mouse");
+    } else {
+      ImGui::Text("Press Escape to grab mouse");
+    }
+    ImGui::Text("Mouse x: %f", Context::mouse_x);
+    ImGui::Text("Mouse y: %f", Context::mouse_y);
+    ImGui::Text("Mouse dx: %f", Context::mouse_dx);
+    ImGui::Text("Mouse dy: %f", Context::mouse_dy);
     ImGui::End();
+
+    float speed = 1.0/60.0 * 3; // 3 m/s
+    if (Context::key_pressed[GLFW_KEY_LEFT_CONTROL]) {
+      speed *= 2;
+    }
+
+    if (Context::key_pressed[GLFW_KEY_CAPS_LOCK]) {
+      if (mousegrab) {
+        Context::release_mouse();
+        mousegrab = false;
+      } else {
+        Context::grab_mouse();
+        mousegrab = true;
+      }
+    }
+
+    if (mousegrab) {
+      camera.yaw -= Context::mouse_dx / 10;
+      camera.pitch -= Context::mouse_dy / 10;
+      camera.pitch = std::clamp(camera.pitch, -89.99999f, 89.99999f);
+    }
+
+    if (Context::key_pressed[GLFW_KEY_W]) {
+      camera.move_forward(speed);
+    }
+    if (Context::key_pressed[GLFW_KEY_S]) {
+      camera.move_backward(speed);
+    }
+    if (Context::key_pressed[GLFW_KEY_A]) {
+      camera.move_left(speed);
+    }
+    if (Context::key_pressed[GLFW_KEY_D]) {
+      camera.move_right(speed);
+    }
+    if (Context::key_pressed[GLFW_KEY_LEFT_SHIFT]) {
+      camera.move_down(speed);
+    }
+    if (Context::key_pressed[GLFW_KEY_SPACE]) {
+      camera.move_up(speed);
+    }
 
     glProgramUniformMatrix4fv(shader_program, view_uniform, 1, GL_FALSE, glm::value_ptr(camera.view()));
     glProgramUniformMatrix4fv(shader_program, projection_uniform, 1, GL_FALSE, glm::value_ptr(camera.projection()));
