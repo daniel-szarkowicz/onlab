@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <glm/common.hpp>
+#include <glm/geometric.hpp>
 #include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -93,23 +94,14 @@ int main() {
       camera.pitch = std::clamp(camera.pitch, -89.99999f, 89.99999f);
     }
 
-    if (Context::key_pressed[GLFW_KEY_W]) {
-      camera.move_forward(speed);
-    }
-    if (Context::key_pressed[GLFW_KEY_S]) {
-      camera.move_backward(speed);
-    }
-    if (Context::key_pressed[GLFW_KEY_A]) {
-      camera.move_left(speed);
-    }
-    if (Context::key_pressed[GLFW_KEY_D]) {
-      camera.move_right(speed);
-    }
-    if (Context::key_pressed[GLFW_KEY_LEFT_SHIFT]) {
-      camera.move_down(speed);
-    }
-    if (Context::key_pressed[GLFW_KEY_SPACE]) {
-      camera.move_up(speed);
+    glm::vec3 dir(0, 0, 0);
+    if (Context::key_pressed[GLFW_KEY_S])          dir.x -= 1;
+    if (Context::key_pressed[GLFW_KEY_A])          dir.z -= 1;
+    if (Context::key_pressed[GLFW_KEY_D])          dir.z += 1;
+    if (Context::key_pressed[GLFW_KEY_LEFT_SHIFT]) dir.y -= 1;
+    if (Context::key_pressed[GLFW_KEY_SPACE])      dir.y += 1;
+    if (glm::length(dir) > 0) {
+      camera.move_facing(glm::normalize(dir) * speed);
     }
 
     glProgramUniformMatrix4fv(shader_program, view_uniform, 1, GL_FALSE, glm::value_ptr(camera.view()));

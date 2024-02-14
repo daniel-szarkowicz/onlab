@@ -42,15 +42,9 @@ public:
 
 public:
     FirstPersonCamera(glm::vec3 position, float yaw, float pitch);
-    void move_forward(float distance);
-    void move_backward(float distance);
-    void move_left(float distance);
-    void move_right(float distance);
-    void move_up(float distance);
-    void move_down(float distance);
+    void move_facing(glm::vec3 movement);
 
 protected:
     virtual glm::vec3 position() override;
     virtual glm::vec3 look_at() override;
-    glm::mat4 facing_rotation();
 };
