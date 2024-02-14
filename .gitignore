@@ -1,0 +1,6 @@
+.cache/
+build/
+imgui.ini
+compile_commands.json
+run
+*.pdf
