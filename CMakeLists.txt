@@ -4,6 +4,8 @@ project(onlab)
 add_executable(
   main
   src/main.cpp
+  src/geometry.cpp
+  src/object.cpp
   src/engine/camera.cpp
   src/engine/context.cpp
   src/engine/imgui/backends/imgui_impl_glfw.cpp
