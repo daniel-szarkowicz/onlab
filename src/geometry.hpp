@@ -1,31 +1,16 @@
 #pragma once
+#include <glm/glm.hpp>
 #include <GL/glew.h>
+#include "mesh.hpp"
 
 class Geometry {
 public:
-  virtual void draw() = 0;
+  Mesh mesh;
+  glm::mat4 transform;
+
+  Geometry(Mesh mesh, glm::mat4 transform);
+
+  static Geometry box(glm::vec3 size);
+  static Geometry sphere(float r);
 };
 
-class SquareGeometry: public Geometry {
-private:
-  GLuint vertex_array;
-  GLuint vertex_position_buffer;
-  GLuint vertex_normal_buffer;
-  GLuint index_buffer;
-public:
-  SquareGeometry();
-  ~SquareGeometry();
-  void draw() override;
-};
-
-class CubeGeometry: public Geometry {
-private:
-  GLuint vertex_array;
-  GLuint vertex_position_buffer;
-  GLuint vertex_normal_buffer;
-  GLuint index_buffer;
-public:
-  CubeGeometry();
-  ~CubeGeometry();
-  void draw() override;
-};

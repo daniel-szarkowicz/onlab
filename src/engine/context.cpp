@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 #include "context.hpp"
 #include "imgui/imgui.h"
 #include "imgui/backends/imgui_impl_glfw.h"
@@ -13,8 +14,8 @@ static GLFWwindow* window = NULL;
 static bool imgui = false;
 static bool imgui_glfw = false;
 static bool imgui_opengl = false;
-static double prev_time;
-static double curr_time;
+static long prev_time;
+static long curr_time;
 static glm::vec<2, double> mouse_pos;
 static glm::vec<2, double> mouse_change;
 static int w_width;
@@ -136,8 +137,7 @@ void Context::frame_start() {
     mouse_pos = mp;
 
     prev_time = curr_time;
-    curr_time = std::chrono::duration_cast<
-        std::chrono::duration<double, std::ratio<1, 1>>>(
+    curr_time = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 }
 
@@ -177,11 +177,11 @@ void Context::uninit() {
     }
 }
 
-double Context::delta() {
-    return curr_time - prev_time;
+float Context::delta() {
+    return (curr_time - prev_time) / 1000.f;
 }
 
-double Context::fps() {
+float Context::fps() {
     return 1/delta();
 }
 

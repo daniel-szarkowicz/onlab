@@ -5,18 +5,18 @@
 
 class Camera {
 public:
-    glm::mat4 projection();
-    glm::mat4 view();
-    glm::mat4 view_projection();
+    glm::mat4 projection() const;
+    glm::mat4 view() const;
+    glm::mat4 view_projection() const;
 
 protected:
-    virtual float fov();
-    virtual float aspect();
-    virtual float near();
-    virtual float far();
-    virtual glm::vec3 position() = 0;
-    virtual glm::vec3 look_at() = 0;
-    virtual glm::vec3 up();
+    virtual float fov() const;
+    virtual float aspect() const;
+    virtual float near() const;
+    virtual float far() const;
+    virtual glm::vec3 position() const = 0;
+    virtual glm::vec3 look_at() const = 0;
+    virtual glm::vec3 up() const;
 };
 
 class OrbitingCamera : public Camera {
@@ -30,8 +30,8 @@ public:
     OrbitingCamera(glm::vec3 center, float distance, float pitch, float yaw);
 
 protected:
-    virtual glm::vec3 position() override;
-    virtual glm::vec3 look_at() override;
+    virtual glm::vec3 position() const override;
+    virtual glm::vec3 look_at() const override;
 };
 
 class FirstPersonCamera : public Camera {
@@ -45,6 +45,6 @@ public:
     void move_facing(glm::vec3 movement);
 
 protected:
-    virtual glm::vec3 position() override;
-    virtual glm::vec3 look_at() override;
+    virtual glm::vec3 position() const override;
+    virtual glm::vec3 look_at() const override;
 };

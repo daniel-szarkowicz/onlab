@@ -6,6 +6,7 @@
 #include <glm/common.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/quaternion_common.hpp>
+#include <glm/ext/quaternion_trigonometric.hpp>
 #include <glm/geometric.hpp>
 #include <iostream>
 #include <glm/glm.hpp>
@@ -16,35 +17,36 @@
 #include <vector>
 #include "geometry.hpp"
 #include "object.hpp"
-
-GLuint create_shader_program();
-
-const glm::vec3 GRAVITY(0, -9.80665, 0);
+#include "shader.hpp"
 
 int main() {
   Context::init(720, 1280, "Rigid body szimuláció");
   glEnable(GL_CULL_FACE);
 
-  auto shader_program = create_shader_program();
-
-  auto model_uniform = glGetUniformLocation(shader_program, "model");
-  auto model_inv_uniform = glGetUniformLocation(shader_program, "model_inv");
-  auto view_uniform = glGetUniformLocation(shader_program, "view");
-  auto projection_uniform = glGetUniformLocation(shader_program, "projection");
-
-  auto cubeGeometry = std::make_shared<CubeGeometry>();
-  std::vector<Object> cubes;
-  for (int x = -10; x < 10; ++x) {
-    for (int y = -10; y < 10; ++y) {
-      for (int z = -10; z < 10; ++z) {
-        cubes.emplace_back(cubeGeometry, glm::vec3(x * 2, y * 2, z * 2));
+  std::vector<Object> objects;
+  for (int x = -5; x < 5; ++x) {
+    for (int y = -5; y < 5; ++y) {
+      for (int z = -5; z < 5; ++z) {
+        auto obj = Object::box(glm::vec3(1,1,1));
+        // auto obj = Object::sphere(1);
+        obj.position = glm::vec3(2*x, 2*y, 2*z);
+        objects.push_back(obj);
       }
     }
   }
-  Object ground(cubeGeometry, glm::vec3(0, -21, 0), glm::vec3(100, 1, 100));
+  {
+    auto ground = Object::box(glm::vec3(10000, 1, 10000));
+    ground.position = glm::vec3(0, -21, 0);
+    ground.immovable = true;
+    objects.push_back(ground);
+  }
+  GeometryShader geometry_shader;
+  AABBShader aabb_shader;
 
   bool mousegrab = false;
   bool paused = true;
+  bool show_objects = true;
+  bool show_bounds = false;
 
   auto camera = FirstPersonCamera({0, 1.5, 0}, 0, 0);
 
@@ -53,32 +55,18 @@ int main() {
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui::Begin("Settings");
     ImGui::Checkbox("Pause", &paused);
-    ImGui::DragFloat3("camera position", glm::value_ptr(camera.pos));
-    ImGui::DragFloat("camera yaw", &camera.yaw);
-    ImGui::DragFloat("camera pitch", &camera.pitch);
+    ImGui::Checkbox("Show objects", &show_objects);
+    ImGui::Checkbox("Show bounds", &show_bounds);
     if (mousegrab) {
       ImGui::Text("Press Escape to release mouse");
     } else {
       ImGui::Text("Press Escape to grab mouse");
     }
     ImGui::Text("FPS: %2.2f", Context::fps());
+    ImGui::Text("Delta: %2.2f", Context::delta());
     ImGui::End();
 
-    for (auto& cube : cubes) {
-      cube.force += GRAVITY * cube.mass;
-    }
-
-    if (!paused) {
-      for (auto& cube : cubes) {
-        cube.update(Context::delta());
-      }
-    }
-
-    for (auto& cube : cubes) {
-      cube.force = glm::vec3(0, 0, 0);
-    }
-
-    double speed = 3;
+    float speed = 3;
     if (Context::key_pressed[GLFW_KEY_LEFT_CONTROL]) {
       speed *= 2;
     }
@@ -99,7 +87,7 @@ int main() {
       camera.pitch = std::clamp(camera.pitch, -89.999f, 89.999f);
     }
 
-    glm::vec<3, double> dir(0, 0, 0);
+    glm::vec3 dir(0, 0, 0);
     if (Context::key_pressed[GLFW_KEY_W])          dir.x += 1;
     if (Context::key_pressed[GLFW_KEY_S])          dir.x -= 1;
     if (Context::key_pressed[GLFW_KEY_A])          dir.z -= 1;
@@ -110,72 +98,21 @@ int main() {
       camera.move_facing(glm::normalize(dir) * speed * Context::delta());
     }
 
-    glProgramUniformMatrix4fv(shader_program, view_uniform, 1, GL_FALSE, glm::value_ptr(camera.view()));
-    glProgramUniformMatrix4fv(shader_program, projection_uniform, 1, GL_FALSE, glm::value_ptr(camera.projection()));
-
-    glUseProgram(shader_program);
-    for (auto& cube : cubes) {
-      cube.draw(model_uniform, model_inv_uniform);
+    for (auto& object : objects) {
+      if (!object.immovable) {
+        auto rotation = glm::angleAxis(glm::radians(20.0f)*Context::delta(), glm::normalize(object.position));
+        object.rotation *= rotation;
+      }
     }
-    ground.draw(model_uniform, model_inv_uniform);
+
+    if (show_objects) geometry_shader.drawObjects(camera, objects);
+    glLineWidth(3);
+    if (show_bounds) aabb_shader.drawObjects(camera, objects);
   });
 
   Context::uninit();
 }
 
-GLuint create_shader_program() {
-  auto shader_program = glCreateProgram();
-
-  auto vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-  auto vertex_source = R"(
-    #version 400
-
-    uniform mat4 model;
-    uniform mat4 view;
-    uniform mat4 projection;
-    uniform mat4 model_inv;
-
-    layout(location = 0) in vec4 vertexPosition;
-    layout(location = 1) in vec3 vertexNormal;
-
-    out vec3 normal;
-    out vec3 position;
-
-    void main() {
-      gl_Position = projection * view * model * vertexPosition;
-      position = vec3(model * vertexPosition);
-      normal = normalize(vec3(vec4(vertexNormal, 0) * model_inv));
-    }
-  )";
-  glShaderSource(vertex_shader, 1, &vertex_source, NULL);
-  glCompileShader(vertex_shader);
-  glAttachShader(shader_program, vertex_shader);
-
-  auto fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-  auto fragment_source = R"(
-    #version 400
-
-    in vec3 normal;
-    in vec3 position;
-
-    out vec4 frag_color;
-
-    void main() {
-        vec3 light_dir = vec3(-0.7, 1, 0.5);
-        float ambient_lightness = 0.3;
-        float bright_lightness = 0.7 * max(0, dot(light_dir, normalize(normal)));
-        float lightness = ambient_lightness + bright_lightness;
-        vec3 color = vec3(1, 1, 1) * lightness;
-        frag_color = vec4(color, 1);
-    }
-  )";
-  glShaderSource(fragment_shader, 1, &fragment_source, NULL);
-  glCompileShader(fragment_shader);
-  glAttachShader(shader_program, fragment_shader);
-
-  glLinkProgram(shader_program);
-  return shader_program;
-}
 /*
 rigidbodies:
   draw (player perspective + shadows)

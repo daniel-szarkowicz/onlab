@@ -1,30 +1,24 @@
 #include "object.hpp"
 #include "geometry.hpp"
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
 
-Object::Object(
-               std::shared_ptr<Geometry> geometry,
-               glm::vec3 position,
-               glm::vec3 scale,
-               float mass)
-  : geometry(geometry), position(position), scale(scale), mass(mass) {}
+Object::Object(Geometry geometry, Collider* collider)
+  : geometry(geometry), collider(collider),
+    position(glm::vec3(0, 0, 0)), rotation(glm::quat(1, 0, 0, 0)), immovable(false) {}
 
-void Object::draw(GLuint model_uniform_location, GLuint model_inv_uniform_location) {
-  glm::mat4 model(1.0f);
-  model = glm::scale(model, scale);
-  model = glm::translate(model, position);
-  glUniformMatrix4fv(model_uniform_location, 1, GL_FALSE, glm::value_ptr(model));
-
-  glm::mat4 model_inv(1.0f);
-  model_inv = glm::translate(model_inv, -position);
-  model_inv = glm::scale(model, 1.0f/scale);
-  glUniformMatrix4fv(model_inv_uniform_location, 1, GL_FALSE, glm::value_ptr(model));
-
-  geometry->draw();
+AABB Object::aabb() {
+  return collider->aabb(position, rotation);
 }
 
-void Object::update(float dt) {
-  momentum += force * dt;
-  position += momentum * dt / mass;
+Object Object::box(glm::vec3 size) {
+  return Object(Geometry::box(size), new BoxCollider(size));
+}
+
+Object Object::sphere(float radius) {
+  return Object(Geometry::sphere(radius), new SphereCollider(radius));
+}
+
+Object::~Object() {
+  // FIXME must delete collider to have no memory leaks
+  
+  // delete collider;
 }

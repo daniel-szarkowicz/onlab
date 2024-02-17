@@ -4,8 +4,11 @@ project(onlab)
 add_executable(
   main
   src/main.cpp
+  src/mesh.cpp
   src/geometry.cpp
+  src/shader.cpp
   src/object.cpp
+  src/collider.cpp
   src/engine/camera.cpp
   src/engine/context.cpp
   src/engine/imgui/backends/imgui_impl_glfw.cpp
@@ -17,3 +20,11 @@ add_executable(
 )
 include_directories(src src/engine src/engine/imgui)
 target_link_libraries(main glfw GLEW GL)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -fopenmp")
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")

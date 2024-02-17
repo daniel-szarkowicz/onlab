@@ -19,8 +19,8 @@ public:
     }
     static void uninit();
 
-    static double delta();
-    static double fps();
+    static float delta();
+    static float fps();
 
     static glm::vec<2, double> mouse_position();
     static glm::vec<2, double> mouse_position_change();
