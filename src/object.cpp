@@ -6,8 +6,9 @@
 Object::Object(
                std::shared_ptr<Geometry> geometry,
                glm::vec3 position,
-               glm::vec3 scale)
-  : geometry(geometry), position(position), scale(scale) {}
+               glm::vec3 scale,
+               float mass)
+  : geometry(geometry), position(position), scale(scale), mass(mass) {}
 
 void Object::draw(GLuint model_uniform_location, GLuint model_inv_uniform_location) {
   glm::mat4 model(1.0f);
@@ -21,4 +22,9 @@ void Object::draw(GLuint model_uniform_location, GLuint model_inv_uniform_locati
   glUniformMatrix4fv(model_inv_uniform_location, 1, GL_FALSE, glm::value_ptr(model));
 
   geometry->draw();
+}
+
+void Object::update(float dt) {
+  momentum += force * dt;
+  position += momentum * dt / mass;
 }

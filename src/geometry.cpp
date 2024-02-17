@@ -155,7 +155,6 @@ CubeGeometry::CubeGeometry() {
 
 void CubeGeometry::draw() {
   glBindVertexArray(vertex_array);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
   glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_SHORT, NULL);
 }
 

@@ -36,8 +36,8 @@ static void GLAPIENTRY message_callback(GLenum source, GLenum type, GLuint id,
     (void)userParam;
     switch (severity) {
     case GL_DEBUG_SEVERITY_HIGH: {
-        //fprintf(stderr, "[ERROR]: OpenGL: %s\n", message);
-        //exit(1);
+        fprintf(stderr, "[ERROR]: OpenGL: %s\n", message);
+        exit(1);
     } break;
     case GL_DEBUG_SEVERITY_MEDIUM: {
         fprintf(stderr, "[WARNING]: OpenGL: %s\n", message);

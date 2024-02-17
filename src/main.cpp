@@ -19,6 +19,8 @@
 
 GLuint create_shader_program();
 
+const glm::vec3 GRAVITY(0, -9.80665, 0);
+
 int main() {
   Context::init(720, 1280, "Rigid body szimuláció");
   glEnable(GL_CULL_FACE);
@@ -42,6 +44,7 @@ int main() {
   Object ground(cubeGeometry, glm::vec3(0, -21, 0), glm::vec3(100, 1, 100));
 
   bool mousegrab = false;
+  bool paused = true;
 
   auto camera = FirstPersonCamera({0, 1.5, 0}, 0, 0);
 
@@ -49,6 +52,7 @@ int main() {
     glClearColor(0.3, 0.6, 0.9, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui::Begin("Settings");
+    ImGui::Checkbox("Pause", &paused);
     ImGui::DragFloat3("camera position", glm::value_ptr(camera.pos));
     ImGui::DragFloat("camera yaw", &camera.yaw);
     ImGui::DragFloat("camera pitch", &camera.pitch);
@@ -59,6 +63,20 @@ int main() {
     }
     ImGui::Text("FPS: %2.2f", Context::fps());
     ImGui::End();
+
+    for (auto& cube : cubes) {
+      cube.force += GRAVITY * cube.mass;
+    }
+
+    if (!paused) {
+      for (auto& cube : cubes) {
+        cube.update(Context::delta());
+      }
+    }
+
+    for (auto& cube : cubes) {
+      cube.force = glm::vec3(0, 0, 0);
+    }
 
     double speed = 3;
     if (Context::key_pressed[GLFW_KEY_LEFT_CONTROL]) {
