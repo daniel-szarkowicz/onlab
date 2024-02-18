@@ -20,7 +20,7 @@ float Camera::aspect() const {
 
 float Camera::near() const { return 0.1f; }
 
-float Camera::far() const { return 1000.0f; }
+float Camera::far() const { return 100000.0f; }
 
 glm::vec3 Camera::up() const { return glm::vec3(0.0f, 1.0f, 0.0f); }
 

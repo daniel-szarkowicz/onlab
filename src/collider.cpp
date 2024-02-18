@@ -25,7 +25,7 @@ SphereCollider::SphereCollider(float radius)
 
 AABB SphereCollider::aabb(glm::vec3 position, glm::quat) const {
   AABB aabb;
-  auto offset = glm::vec3(1,1,1) * radius / 2.0f;
+  auto offset = glm::vec3(radius);
   aabb.low = position - offset;
   aabb.high = position + offset;
   return aabb;

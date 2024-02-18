@@ -25,17 +25,19 @@ int main() {
 
   std::vector<Object> objects;
   for (int x = -5; x < 5; ++x) {
-    for (int y = -5; y < 5; ++y) {
+    for (int y = 1; y < 11; ++y) {
       for (int z = -5; z < 5; ++z) {
-        if ((x + y + z) % 2) objects.push_back(Object::box(glm::vec3(1,1,1)));
-        else objects.push_back(Object::sphere(1));
+        if ((x + y + z) % 2) objects.push_back(Object::box(glm::vec3(1,2,1)));
+        else objects.push_back(Object::sphere(0.5));
         objects.back().position = glm::vec3(2*x, 2*y, 2*z);
       }
     }
   }
   {
     auto ground = Object::box(glm::vec3(10000, 1, 10000));
-    ground.position = glm::vec3(0, -21, 0);
+    ground.position = glm::vec3(0, 0, 0);
+    // auto ground = Object::sphere(10000);
+    // ground.position = glm::vec3(0, -10000, 0);
     ground.immovable = true;
     objects.push_back(ground);
   }
@@ -48,6 +50,7 @@ int main() {
   bool show_bounds = false;
 
   auto camera = FirstPersonCamera({0, 1.5, 0}, 0, 0);
+  float speed = 3;
 
   Context::loop([&]() {
     glClearColor(0.3, 0.6, 0.9, 1.0);
@@ -63,11 +66,14 @@ int main() {
     }
     ImGui::Text("FPS: %2.2f", Context::fps());
     ImGui::Text("Delta: %2.2f", Context::delta());
+    ImGui::DragFloat3("Position", glm::value_ptr(camera.pos));
+    ImGui::DragFloat("Speed", &speed);
     ImGui::End();
 
-    float speed = 3;
+    float speed_multiplier = 1;
+
     if (Context::key_pressed[GLFW_KEY_LEFT_CONTROL]) {
-      speed *= 2;
+      speed_multiplier *= 2;
     }
 
     if (Context::key_just_pressed[GLFW_KEY_CAPS_LOCK]) {
@@ -83,7 +89,7 @@ int main() {
     if (mousegrab) {
       camera.yaw -= Context::mouse_position_change().x / 10;
       camera.pitch -= Context::mouse_position_change().y / 10;
-      camera.pitch = std::clamp(camera.pitch, -89.999f, 89.999f);
+      camera.pitch = std::clamp(camera.pitch, -89.9f, 89.9f);
     }
 
     glm::vec3 dir(0, 0, 0);
@@ -94,7 +100,7 @@ int main() {
     if (Context::key_pressed[GLFW_KEY_LEFT_SHIFT]) dir.y -= 1;
     if (Context::key_pressed[GLFW_KEY_SPACE])      dir.y += 1;
     if (glm::length(dir) > 0) {
-      camera.move_facing(glm::normalize(dir) * speed * Context::delta());
+      camera.move_facing(glm::normalize(dir) * speed * speed_multiplier * Context::delta());
     }
 
     for (auto& object : objects) {

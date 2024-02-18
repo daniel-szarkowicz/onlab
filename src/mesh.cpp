@@ -121,7 +121,7 @@ Mesh Mesh::sphere() {
   if (_sphere.vertex_array != 0) {
     return _sphere;
   }
-  struct Vertex {float x, y, z, nx, ny, nz;};
+  struct Vertex {float x, y, z/*, nx, ny, nz*/;};
   struct Index {short a, b, c;};
   Vertex vertices[LATITUDE * LONGITUDE];
   Index indices[LATITUDE * (LONGITUDE - 1) * 2];
@@ -132,7 +132,7 @@ Mesh Mesh::sphere() {
       float y = sin(beta);
       float x = cos(beta) * sin(alpha);
       float z = cos(beta) * cos(alpha);
-      vertices[a + b*LATITUDE] = {x/2, y/2, z/2, x, y, z};
+      vertices[a + b*LATITUDE] = {x, y, z/*, x, y, z*/};
     }
   }
   for (short b = 0; b < LONGITUDE-1; ++b) {
@@ -157,9 +157,9 @@ Mesh Mesh::sphere() {
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), 0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
   glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3 * sizeof(float)));
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
   glCreateBuffers(1, &ib);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib);
