@@ -27,10 +27,9 @@ int main() {
   for (int x = -5; x < 5; ++x) {
     for (int y = -5; y < 5; ++y) {
       for (int z = -5; z < 5; ++z) {
-        auto obj = Object::box(glm::vec3(1,1,1));
-        // auto obj = Object::sphere(1);
-        obj.position = glm::vec3(2*x, 2*y, 2*z);
-        objects.push_back(obj);
+        if ((x + y + z) % 2) objects.push_back(Object::box(glm::vec3(1,1,1)));
+        else objects.push_back(Object::sphere(1));
+        objects.back().position = glm::vec3(2*x, 2*y, 2*z);
       }
     }
   }

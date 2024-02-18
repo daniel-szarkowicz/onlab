@@ -1,4 +1,5 @@
 #include "mesh.hpp"
+#include <cmath>
 
 Mesh Mesh::_box;
 Mesh Mesh::_sphere;
@@ -113,9 +114,60 @@ Mesh Mesh::box() {
   return _box;
 }
 
+const short LATITUDE = 36;
+const short LONGITUDE = 18;
+
 Mesh Mesh::sphere() {
-  // TODO
-  return box();
+  if (_sphere.vertex_array != 0) {
+    return _sphere;
+  }
+  struct Vertex {float x, y, z, nx, ny, nz;};
+  struct Index {short a, b, c;};
+  Vertex vertices[LATITUDE * LONGITUDE];
+  Index indices[LATITUDE * (LONGITUDE - 1) * 2];
+  for (int b = 0; b < LONGITUDE; ++b) {
+    for (int a = 0; a < LATITUDE; ++a) {
+      float alpha = a*M_PI * 2 / LATITUDE;
+      float beta =  (b*M_PI / (LONGITUDE - 1)) - M_PI/2;
+      float y = sin(beta);
+      float x = cos(beta) * sin(alpha);
+      float z = cos(beta) * cos(alpha);
+      vertices[a + b*LATITUDE] = {x/2, y/2, z/2, x, y, z};
+    }
+  }
+  for (short b = 0; b < LONGITUDE-1; ++b) {
+    for (short a = 0; a < LATITUDE; ++a) {
+      indices[(a + b*LATITUDE) * 2] = {
+        (short)(a + b * LATITUDE),
+        (short)((a + 1) % LATITUDE + b * LATITUDE),
+        (short)(a + b * LATITUDE + LATITUDE),
+      };
+      indices[(a + b*LATITUDE) * 2 + 1] = {
+        (short)((a + 1) % LATITUDE + b * LATITUDE),
+        (short)((a + 1) % LATITUDE + b * LATITUDE + LATITUDE),
+        (short)(a + b * LATITUDE + LATITUDE),
+      };
+    }
+  }
+  glCreateVertexArrays(1, &_sphere.vertex_array);
+  glBindVertexArray(_sphere.vertex_array);
+
+  GLuint vbo, ib;
+  glCreateBuffers(1, &vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), 0);
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3 * sizeof(float)));
+
+  glCreateBuffers(1, &ib);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+  _sphere.vertex_count = sizeof(indices) / sizeof(Index)
+    * sizeof(Index) / sizeof(GLushort);
+  return _sphere;
 }
 
 Mesh Mesh::bounding_box() {
