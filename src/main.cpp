@@ -18,6 +18,7 @@
 #include "geometry.hpp"
 #include "object.hpp"
 #include "shader.hpp"
+#include "simulation.hpp"
 
 int main() {
   Context::init(720, 1280, "Rigid body szimuláció");
@@ -29,7 +30,8 @@ int main() {
       for (int z = -5; z < 5; ++z) {
         if ((x + y + z) % 2) objects.push_back(Object::box(glm::vec3(1,2,1)));
         else objects.push_back(Object::sphere(0.5));
-        objects.back().position = glm::vec3(2*x, 2*y, 2*z);
+        objects.back().position = glm::vec3(10*x, 10*y, 10*z);
+        objects.back().rotation = glm::angleAxis(30.f, glm::normalize(glm::vec3(10*x, 10*y, 10*z)));
       }
     }
   }
@@ -43,9 +45,9 @@ int main() {
   }
   GeometryShader geometry_shader;
   AABBShader aabb_shader;
+  Simulation sim;
 
   bool mousegrab = false;
-  bool paused = true;
   bool show_objects = true;
   bool show_bounds = false;
 
@@ -56,7 +58,7 @@ int main() {
     glClearColor(0.3, 0.6, 0.9, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui::Begin("Settings");
-    ImGui::Checkbox("Pause", &paused);
+    ImGui::Checkbox("Pause simulation", &sim.paused);
     ImGui::Checkbox("Show objects", &show_objects);
     ImGui::Checkbox("Show bounds", &show_bounds);
     if (mousegrab) {
@@ -103,13 +105,41 @@ int main() {
       camera.move_facing(glm::normalize(dir) * speed * speed_multiplier * Context::delta());
     }
 
-    for (auto& object : objects) {
-      if (!object.immovable) {
-        auto rotation = glm::angleAxis(glm::radians(20.0f)*Context::delta(), glm::normalize(object.position));
-        object.rotation *= rotation;
+    // for (auto& object : objects) {
+    //   if (!object.immovable) {
+    //     auto rotation = glm::angleAxis(glm::radians(20.0f)*Context::delta(), glm::normalize(object.position));
+    //     object.rotation *= rotation;
+    //   }
+    // }
+
+    if (Context::key_pressed[GLFW_KEY_R]) {
+      glm::mat4 rot = glm::mat4(1.0f);
+      rot = glm::rotate(rot, glm::radians(camera.yaw), glm::vec3(0, 1, 0));
+      rot = glm::rotate(rot, glm::radians(camera.pitch), glm::vec3(0, 0, 1));
+      glm::vec3 dir = glm::vec3(rot * glm::vec4(1, 0, 0, 1));
+      Ray ray = {
+        camera.pos,
+        glm::normalize(dir)
+      };
+      float best = -1;
+      size_t besti = 0;
+      for (size_t i = 0; i < objects.size(); ++i) {
+        float hit = objects[i].ray_hit(ray);
+        if (best < 0 || (best > hit && hit >= 0)) {
+          best = hit;
+          besti = i;
+        }
+      }
+      if (best >= 0) {
+        objects[besti].apply_force(ray.start + best*ray.dir, 10.0f*ray.dir);
       }
     }
 
+    // for (auto& object : objects) {
+    //   object.apply_force(glm::vec3(0), glm::vec3(0, -object.mass, 0));
+    // }
+
+    sim.simulate(Context::delta(), objects);
     if (show_objects) geometry_shader.drawObjects(camera, objects);
     glLineWidth(3);
     if (show_bounds) aabb_shader.drawObjects(camera, objects);

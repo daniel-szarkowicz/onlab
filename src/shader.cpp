@@ -78,7 +78,7 @@ GeometryShader::GeometryShader() {
 
 void GeometryShader::drawObjects(
                                  const Camera& camera,
-                                 std::vector<Object> objects) {
+                                 const std::vector<Object>& objects) {
 
   // struct ModelMatricies {
   //   glm::mat4 model, model_inv;
@@ -163,7 +163,7 @@ AABBShader::AABBShader() {
 }
 
 void AABBShader::drawObjects(const Camera& camera,
-                             std::vector<Object> objects) {
+                             const std::vector<Object>& objects) {
   glUseProgram(program);
   glUniformMatrix4fv(view, 1, GL_FALSE, glm::value_ptr(camera.view()));
   glUniformMatrix4fv(projection, 1, GL_FALSE, glm::value_ptr(camera.projection()));

@@ -15,7 +15,7 @@ class GeometryShader {
 public:
   GLuint program;
   GeometryShader();
-  void drawObjects(const Camera& camera, std::vector<Object> objects);
+  void drawObjects(const Camera& camera, const std::vector<Object>& objects);
 };
 
 class AABBShader {
@@ -26,5 +26,5 @@ class AABBShader {
 public:
   GLuint program;
   AABBShader();
-  void drawObjects(const Camera& camera, std::vector<Object> objects);
+  void drawObjects(const Camera& camera, const std::vector<Object>& objects);
 };

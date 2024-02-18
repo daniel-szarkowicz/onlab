@@ -16,3 +16,22 @@
   - force ($F$)
   - torque ($tau$)
 
+= Ray-Sphere intersection
+#let vec(x) = $overline(bold(#x))$
+Ray parameters: position $vec(s)$, direction $vec(d)$\
+Sphere parameters: center $vec(c)$, radius $r$\
+Ray: $vec(p)(t) = vec(s) + t dot vec(d)$\
+Sphere: $|vec(p)-vec(c)| = r$\
+Intersection: $
+|vec(p)(t)-vec(c)| &= r\
+|vec(s) + t dot vec(d) - vec(c)| &= r\
+(vec(s) + t dot vec(d) - vec(c))^2 &= r^2\
+vec(s)^2 + t^2 vec(d)^2 + vec(c)^2 +
+2 t vec(s) vec(d) - 2 vec(s) vec(c) - 2 t vec(d) vec(c) - r^2 &= 0\
+a = vec(d) vec(d), quad b = 2 vec(s) vec(d) - 2 vec(d) vec(d),& quad
+c = vec(s) vec(s) + vec(c) vec(c) - 2 vec(s) vec(c) - r^2\
+t_(1,2) = - vec(s) vec(d)
+$
+
+= Ray-Box intersection
+

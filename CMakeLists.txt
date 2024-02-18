@@ -9,6 +9,7 @@ add_executable(
   src/shader.cpp
   src/object.cpp
   src/collider.cpp
+  src/simulation.cpp
   src/engine/camera.cpp
   src/engine/context.cpp
   src/engine/imgui/backends/imgui_impl_glfw.cpp

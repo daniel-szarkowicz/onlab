@@ -17,9 +17,17 @@ public:
   glm::vec3 inertia;
   bool immovable;
 
+  glm::vec3 force;
+
   Object(Geometry geometry, Collider* collider);
 
-  AABB aabb();
+  AABB aabb() const;
+  float ray_hit(Ray ray) const;
+
+  void apply_force(glm::vec3 position, glm::vec3 force);
+  void reset_force();
+  void update(float dt);
+
   static Object box(glm::vec3 size);
   static Object sphere(float radius);
 
