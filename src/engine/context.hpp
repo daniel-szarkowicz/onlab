@@ -29,4 +29,7 @@ public:
     static bool key_just_pressed[];
     static void grab_mouse();
     static void release_mouse();
+
+    static bool mouse_pressed[];
+    static bool mouse_just_pressed[];
 };

@@ -22,7 +22,8 @@ class AABBShader {
   GLuint model;
   GLuint view;
   GLuint projection;
-  Mesh mesh;
+  Mesh bounding_box;
+  Mesh line;
 public:
   GLuint program;
   AABBShader();

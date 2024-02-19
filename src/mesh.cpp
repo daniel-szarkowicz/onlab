@@ -4,6 +4,7 @@
 Mesh Mesh::_box;
 Mesh Mesh::_sphere;
 Mesh Mesh::_bounding_box;
+Mesh Mesh::_line;
 
 Mesh Mesh::box() {
   if (_box.vertex_array != 0) {
@@ -143,9 +144,10 @@ Mesh Mesh::sphere() {
         (short)(a + b * LATITUDE + LATITUDE),
       };
       indices[(a + b*LATITUDE) * 2 + 1] = {
-        (short)((a + 1) % LATITUDE + b * LATITUDE),
-        (short)((a + 1) % LATITUDE + b * LATITUDE + LATITUDE),
-        (short)(a + b * LATITUDE + LATITUDE),
+        0, 0, 0
+        // (short)((a + 1) % LATITUDE + b * LATITUDE),
+        // (short)((a + 1) % LATITUDE + b * LATITUDE + LATITUDE),
+        // (short)(a + b * LATITUDE + LATITUDE),
       };
     }
   }
@@ -206,4 +208,33 @@ Mesh Mesh::bounding_box() {
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indicies), indicies, GL_STATIC_DRAW);
   _bounding_box.vertex_count = sizeof(indicies) / sizeof(GLushort);
   return _bounding_box;
+}
+
+Mesh Mesh::line() {
+  if (_line.vertex_array != 0) {
+    return _line;
+  }
+
+  glCreateVertexArrays(1, &_line.vertex_array);
+  glBindVertexArray(_line.vertex_array);
+
+  GLuint vpb, ib;
+  glCreateBuffers(1, &vpb);
+  glBindBuffer(GL_ARRAY_BUFFER, vpb);
+  float positions[] = {
+    0.5, 0.5, 0.5,
+    -.5, -.5, -.5,
+  };
+  glBufferData(GL_ARRAY_BUFFER, sizeof(positions), positions, GL_STATIC_DRAW);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+  glCreateBuffers(1, &ib);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib);
+  GLushort indicies[] = {
+    0, 1
+  };
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indicies), indicies, GL_STATIC_DRAW);
+  _line.vertex_count = sizeof(indicies) / sizeof(GLushort);
+  return _line;
 }

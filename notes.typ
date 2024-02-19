@@ -35,3 +35,4 @@ $
 
 = Ray-Box intersection
 
+https://cg.iit.bme.hu/portal/oktatott-targyak/szamitogepes-grafika-es-kepfeldolgozas/sugarkoevetes

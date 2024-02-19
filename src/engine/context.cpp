@@ -22,9 +22,8 @@ static int w_width;
 static int w_height;
 bool Context::key_pressed[GLFW_KEY_LAST];
 bool Context::key_just_pressed[GLFW_KEY_LAST];
-// key pressed, just pressed, just released
-// mouse buttons pressed, just pressed, just released
-// mouse pos, delta
+bool Context::mouse_pressed[GLFW_MOUSE_BUTTON_LAST];
+bool Context::mouse_just_pressed[GLFW_MOUSE_BUTTON_LAST];
 
 static void GLAPIENTRY message_callback(GLenum source, GLenum type, GLuint id,
                                         GLenum severity, GLsizei length,
@@ -64,6 +63,14 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action,
     }
 }
 
+static void mouse_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (action == GLFW_PRESS) {
+        Context::mouse_pressed[button] = true;
+        Context::mouse_just_pressed[button] = true;
+    } else if (action == GLFW_RELEASE) {
+        Context::mouse_pressed[button] = false;
+    }
+}
 void Context::init(int window_width, int window_height, const char* title) {
     atexit(Context::uninit);
 
@@ -87,6 +94,7 @@ void Context::init(int window_width, int window_height, const char* title) {
         glfwMakeContextCurrent(window);
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
         glfwSetKeyCallback(window, key_callback);
+        glfwSetMouseButtonCallback(window, mouse_callback);
         w_width = window_width;
         w_height = window_height;
     }
@@ -147,6 +155,9 @@ void Context::frame_end() {
     glfwSwapBuffers(window);
     for (auto& key : key_just_pressed) {
         key = false;
+    }
+    for (auto& button : mouse_just_pressed) {
+        button = false;
     }
 }
 

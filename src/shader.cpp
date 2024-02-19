@@ -3,6 +3,7 @@
 #include <glm/ext/quaternion_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
+#include <math.h>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 
@@ -159,7 +160,8 @@ AABBShader::AABBShader() {
   view = glGetUniformLocation(program, "view");
   projection = glGetUniformLocation(program, "projection");
 
-  mesh = Mesh::bounding_box();
+  bounding_box = Mesh::bounding_box();
+  line = Mesh::line();
 }
 
 void AABBShader::drawObjects(const Camera& camera,
@@ -177,9 +179,17 @@ void AABBShader::drawObjects(const Camera& camera,
 
     glUniformMatrix4fv(this->model, 1, GL_FALSE, glm::value_ptr(model));
 
-    glBindVertexArray(mesh.vertex_array);
+    glBindVertexArray(bounding_box.vertex_array);
     glDrawElements(GL_LINES,
-      mesh.vertex_count, GL_UNSIGNED_SHORT, NULL);
+      bounding_box.vertex_count, GL_UNSIGNED_SHORT, NULL);
+
+    model = glm::translate(glm::mat4(1), object.position)
+      * glm::scale(glm::mat4(1), object.angular_momentum);
+
+    glUniformMatrix4fv(this->model, 1, GL_FALSE, glm::value_ptr(model));
+    glBindVertexArray(line.vertex_array);
+    glDrawElements(GL_LINES,
+      line.vertex_count, GL_UNSIGNED_SHORT, NULL);
   }
 }
 

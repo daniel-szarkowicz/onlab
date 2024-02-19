@@ -28,8 +28,11 @@ int main() {
   for (int x = -5; x < 5; ++x) {
     for (int y = 1; y < 11; ++y) {
       for (int z = -5; z < 5; ++z) {
-        if ((x + y + z) % 2) objects.push_back(Object::box(glm::vec3(1,2,1)));
-        else objects.push_back(Object::sphere(0.5));
+        if ((x + y + z) % 2) {
+          objects.push_back(Object::box(glm::vec3(1,2,1)));
+        } else {
+          objects.push_back(Object::sphere(0.5));
+        }
         objects.back().position = glm::vec3(10*x, 10*y, 10*z);
         objects.back().rotation = glm::angleAxis(30.f, glm::normalize(glm::vec3(10*x, 10*y, 10*z)));
       }
@@ -113,7 +116,7 @@ int main() {
     //   }
     // }
 
-    if (Context::key_pressed[GLFW_KEY_R]) {
+    if (mousegrab/* && Context::mouse_pressed[GLFW_MOUSE_BUTTON_LEFT]*/) {
       glm::mat4 rot = glm::mat4(1.0f);
       rot = glm::rotate(rot, glm::radians(camera.yaw), glm::vec3(0, 1, 0));
       rot = glm::rotate(rot, glm::radians(camera.pitch), glm::vec3(0, 0, 1));
@@ -132,8 +135,15 @@ int main() {
         }
       }
       if (best >= 0) {
-        objects[besti].apply_force(ray.start + best*ray.dir, 10.0f*ray.dir);
-        objects[besti].apply_force(objects[besti].position, -10.0f*ray.dir);
+        float dir = 0;
+        if (Context::mouse_pressed[GLFW_MOUSE_BUTTON_LEFT]) {
+          dir += 1;
+        }
+        if (Context::mouse_pressed[GLFW_MOUSE_BUTTON_RIGHT]) {
+          dir -= 1;
+        }
+        objects[besti].apply_force(ray.start + best*ray.dir, 10*dir*ray.dir);
+        // objects[besti].apply_force(objects[besti].position, -10.0f*ray.dir);
       }
     }
 
