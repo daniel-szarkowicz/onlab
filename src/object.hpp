@@ -18,6 +18,7 @@ public:
   bool immovable;
 
   glm::vec3 force;
+  glm::vec3 torque;
 
   Object(Geometry geometry, Collider* collider);
 

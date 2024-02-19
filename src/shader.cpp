@@ -182,3 +182,53 @@ void AABBShader::drawObjects(const Camera& camera,
       mesh.vertex_count, GL_UNSIGNED_SHORT, NULL);
   }
 }
+
+CrosshairShader::CrosshairShader() {
+  glCreateVertexArrays(1, &vao);
+  glBindVertexArray(vao);
+  GLuint vbo;
+  glCreateBuffers(1, &vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  float point[] = { 0, 0 };
+  glBufferData(GL_ARRAY_BUFFER, sizeof(point), point, GL_STATIC_DRAW);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+  program = glCreateProgram();
+  GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
+  auto vertex_source = R"(
+    #version 430
+
+    layout(location = 0) in vec4 vertexPosition;
+
+    void main() {
+      gl_Position = vertexPosition;
+    }
+  )";
+  glShaderSource(vertex, 1, &vertex_source, NULL);
+  glCompileShader(vertex);
+  glAttachShader(program, vertex);
+
+  GLuint fragment = glCreateShader(GL_FRAGMENT_SHADER);
+  auto fragment_source = R"(
+    #version 430
+
+    out vec4 frag_color;
+
+    void main() {
+        frag_color = vec4(1, 0, 1, 1);
+    }
+  )";
+  glShaderSource(fragment, 1, &fragment_source, NULL);
+  glCompileShader(fragment);
+  glAttachShader(program, fragment);
+
+  glLinkProgram(program);
+}
+
+void CrosshairShader::draw() {
+  glPointSize(5);
+  glUseProgram(program);
+  glBindVertexArray(vao);
+  glDrawArrays(GL_POINTS, 0, 2);
+}

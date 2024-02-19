@@ -45,6 +45,7 @@ int main() {
   }
   GeometryShader geometry_shader;
   AABBShader aabb_shader;
+  CrosshairShader crosshair_shader;
   Simulation sim;
 
   bool mousegrab = false;
@@ -132,6 +133,7 @@ int main() {
       }
       if (best >= 0) {
         objects[besti].apply_force(ray.start + best*ray.dir, 10.0f*ray.dir);
+        objects[besti].apply_force(objects[besti].position, -10.0f*ray.dir);
       }
     }
 
@@ -143,6 +145,7 @@ int main() {
     if (show_objects) geometry_shader.drawObjects(camera, objects);
     glLineWidth(3);
     if (show_bounds) aabb_shader.drawObjects(camera, objects);
+    crosshair_shader.draw();
   });
 
   Context::uninit();

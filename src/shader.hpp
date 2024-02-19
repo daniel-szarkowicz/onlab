@@ -28,3 +28,11 @@ public:
   AABBShader();
   void drawObjects(const Camera& camera, const std::vector<Object>& objects);
 };
+
+class CrosshairShader {
+  GLuint vao;
+public:
+  GLuint program;
+  CrosshairShader();
+  void draw();
+};
