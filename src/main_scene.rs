@@ -23,7 +23,7 @@ pub struct MainScene {
 impl MainScene {
     pub fn new(ctx: &Context) -> Self {
         let mut meshes = Vec::new();
-        meshes.push(crate::meshes::box_mesh(ctx).unwrap());
+        meshes.push(crate::meshes::sphere_mesh(ctx, 30).unwrap());
         let program =
             ShaderProgram::new(ctx, "src/test-vs.glsl", "src/test-fs.glsl")
                 .unwrap();

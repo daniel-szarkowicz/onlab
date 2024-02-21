@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use anyhow::Result;
 
 use crate::mesh::{Mesh, MeshPrimitive};
@@ -45,5 +47,35 @@ pub fn box_mesh(ctx: &Context) -> Result<Mesh<PNVertex>> {
         16, 17, 18, 18, 17, 19,
         20, 21, 22, 22, 21, 23,
     ];
+    Mesh::new(ctx, &vertices, &indices, MeshPrimitive::Triangles)
+}
+
+pub fn sphere_mesh(ctx: &Context, resolution: u16) -> Result<Mesh<PNVertex>> {
+    let lat = resolution * 2;
+    let lon = resolution;
+    let mut vertices = Vec::with_capacity((lat * lon) as usize);
+    for b in 0..lon {
+        for a in 0..lat {
+            let alpha = (a as f32) * PI * 2.0 / (lat as f32);
+            let beta = ((b as f32) * PI / ((lon - 1) as f32)) - PI / 2.0;
+            let y = beta.sin();
+            let x = beta.cos() * alpha.sin();
+            let z = beta.cos() * alpha.cos();
+            vertices.push(PNVertex {
+                position: [x, y, z],
+                normal: [x, y, z],
+            });
+        }
+    }
+    let mut indices = Vec::with_capacity((lat * (lon - 1) * 6) as usize);
+    for b in 0..lon - 1 {
+        for a in 0..lat {
+            let i0 = a + b * lat;
+            let i1 = (a + 1) % lat + b * lat;
+            let i2 = i0 + lat;
+            let i3 = i1 + lat;
+            indices.extend([i0, i1, i2, i2, i1, i3]);
+        }
+    }
     Mesh::new(ctx, &vertices, &indices, MeshPrimitive::Triangles)
 }

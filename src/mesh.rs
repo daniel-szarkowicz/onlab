@@ -34,8 +34,13 @@ impl<V: Vertex> Mesh<V> {
         indicies: &[u16],
         primitive: MeshPrimitive,
     ) -> anyhow::Result<Self> {
-        if indicies.iter().any(|&i| i >= vertices.len() as u16) {
-            Err(MeshError("indicies out of bounds".to_string()))?;
+        for i in indicies {
+            if *i as usize >= vertices.len() {
+                Err(MeshError(format!(
+                    "Indicies out of bounds. Index: {i}/{}",
+                    vertices.len()
+                )))?;
+            }
         }
         let vao = unsafe {
             let gl = &ctx.gl;
