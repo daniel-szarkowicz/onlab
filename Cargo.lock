@@ -776,6 +776,7 @@ name = "onlab"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytemuck",
  "egui",
  "egui_glow",
  "glow",

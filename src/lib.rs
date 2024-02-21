@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 
+use glow::HasContext;
 use glutin::config::{Config, ConfigTemplateBuilder, GlConfig};
 use glutin::context::{
     ContextApi, ContextAttributesBuilder, NotCurrentGlContext,
@@ -66,11 +67,19 @@ impl Context {
         let gl_context =
             not_current_gl_context.make_current(&gl_surface).unwrap();
 
-        let gl = unsafe {
+        let mut gl = unsafe {
             glow::Context::from_loader_function_cstr(|s| {
                 gl_display.get_proc_address(s)
             })
         };
+        unsafe {
+            gl.enable(glow::DEBUG_OUTPUT);
+            gl.debug_message_callback(
+                |_source, _typ, _id, _severity, message| {
+                    println!("{}", message);
+                },
+            );
+        }
 
         gl_surface
             .set_swap_interval(

@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.80"
+bytemuck = "1.14.3"
 egui = "0.25.0"
 egui_glow = { version = "0.25.0", features = [ "winit" ] }
 glow = "0.13.1"
