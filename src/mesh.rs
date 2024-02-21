@@ -50,18 +50,15 @@ impl<V: Vertex> Mesh<V> {
                 glow::STATIC_DRAW,
             );
             V::set_layout(gl);
-            gl.bind_buffer(glow::ARRAY_BUFFER, None);
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ibo));
             gl.buffer_data_u8_slice(
                 glow::ELEMENT_ARRAY_BUFFER,
                 bytemuck::cast_slice(indicies),
                 glow::STATIC_DRAW,
             );
-            // // FIXME uncommenting this causes a segfault.
-            // // The index buffer should be unbound,
-            // // so it won't be changed accidentally.
-            // gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
             gl.bind_vertex_array(None);
+            gl.bind_buffer(glow::ARRAY_BUFFER, None);
+            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
             vao
         };
         Ok(Self {

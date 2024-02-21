@@ -10,36 +10,65 @@ use crate::shader_program::{ShaderProgram, UseShaderProgram};
 use crate::{scene::Scene, vertex::PNVertex, Context};
 
 pub struct MainScene {
-    mesh: Mesh<PNVertex>,
+    meshes: Vec<Mesh<PNVertex>>,
     program: ShaderProgram<PNVertex>,
 }
 
 impl MainScene {
     pub fn new(ctx: &Context) -> Self {
-        let mesh = Mesh::new(
-            ctx,
-            &[
-                PNVertex {
-                    position: [0.0, 1.0, 0.0],
-                    normal: [0.0, 0.0, 1.0],
-                },
-                PNVertex {
-                    position: [1.0, 0.0, 0.0],
-                    normal: [0.0, 0.0, 1.0],
-                },
-                PNVertex {
-                    position: [0.0, 0.0, 0.0],
-                    normal: [0.0, 0.0, 1.0],
-                },
-            ],
-            &[0, 1, 2],
-            MeshPrimitive::Triangles,
-        )
-        .unwrap();
+        let mut meshes = Vec::new();
+        meshes.push(
+            Mesh::new(
+                ctx,
+                &[
+                    PNVertex {
+                        position: [0.0, 1.0, 0.0],
+                        normal: [0.0, 0.0, 1.0],
+                    },
+                    PNVertex {
+                        position: [1.0, 0.0, 0.0],
+                        normal: [0.0, 0.0, 1.0],
+                    },
+                    PNVertex {
+                        position: [0.0, 0.0, 0.0],
+                        normal: [0.0, 0.0, 1.0],
+                    },
+                ],
+                &[0, 1, 2],
+                MeshPrimitive::Triangles,
+            )
+            .unwrap(),
+        );
+        meshes.push(
+            Mesh::new(
+                ctx,
+                &[
+                    PNVertex {
+                        position: [0.0, 0.0, 0.0],
+                        normal: [0.0, 0.0, 1.0],
+                    },
+                    PNVertex {
+                        position: [-1.0, 0.0, 0.0],
+                        normal: [0.0, 0.0, 1.0],
+                    },
+                    PNVertex {
+                        position: [0.0, -1.0, 0.0],
+                        normal: [0.0, 0.0, 1.0],
+                    },
+                    PNVertex {
+                        position: [-1.0, -1.0, 0.0],
+                        normal: [0.0, 0.0, 1.0],
+                    },
+                ],
+                &[0, 1, 2, 2, 1, 3],
+                MeshPrimitive::Triangles,
+            )
+            .unwrap(),
+        );
         let program =
             ShaderProgram::new(ctx, "src/test-vs.glsl", "src/test-fs.glsl")
                 .unwrap();
-        Self { mesh, program }
+        Self { meshes, program }
     }
 }
 
@@ -57,7 +86,9 @@ impl Scene for MainScene {
                 egui::Window::new("Hello").show(egui_ctx, |ui| {});
             });
             ctx.use_shader_program(&self.program);
-            ctx.draw_mesh(&self.mesh);
+            for mesh in &self.meshes {
+                ctx.draw_mesh(mesh);
+            }
             ctx.egui.paint(&ctx.window);
             ctx.gl_surface.swap_buffers(&ctx.gl_context).unwrap();
         }
