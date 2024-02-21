@@ -16,10 +16,10 @@ use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
 
 pub mod main_scene;
+pub mod mesh;
 pub mod scene;
 pub mod shader_program;
 pub mod vertex;
-pub mod vertex_array;
 
 impl Context {
     pub fn new(event_loop: &EventLoop<UserEvent>) -> Self {

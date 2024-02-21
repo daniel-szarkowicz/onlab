@@ -5,33 +5,18 @@ use winit::{
     window::CursorGrabMode,
 };
 
-use crate::{
-    scene::Scene, vertex::PNVertex, vertex_array::DrawVertexArray, Context,
-};
-use crate::{
-    shader_program::{ShaderProgram, UseShaderProgram},
-    vertex_array::VertexArray,
-};
+use crate::mesh::{DrawMesh, Mesh, MeshPrimitive};
+use crate::shader_program::{ShaderProgram, UseShaderProgram};
+use crate::{scene::Scene, vertex::PNVertex, Context};
 
 pub struct MainScene {
-    vertex_array: VertexArray<PNVertex>,
+    mesh: Mesh<PNVertex>,
     program: ShaderProgram<PNVertex>,
 }
 
 impl MainScene {
     pub fn new(ctx: &Context) -> Self {
-        // let ib = unsafe {
-        //     let ib = gl.create_buffer().unwrap();
-        //     gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ib));
-        //     let indicies = [0u16, 1, 2];
-        //     gl.buffer_data_u8_slice(
-        //         glow::ELEMENT_ARRAY_BUFFER,
-        //         bytemuck::cast_slice(&indicies),
-        //         glow::STATIC_DRAW,
-        //     );
-        //     ib
-        // };
-        let vertex_array = VertexArray::new(
+        let mesh = Mesh::new(
             ctx,
             &[
                 PNVertex {
@@ -47,15 +32,14 @@ impl MainScene {
                     normal: [0.0, 0.0, 1.0],
                 },
             ],
+            &[0, 1, 2],
+            MeshPrimitive::Triangles,
         )
         .unwrap();
         let program =
             ShaderProgram::new(ctx, "src/test-vs.glsl", "src/test-fs.glsl")
                 .unwrap();
-        Self {
-            vertex_array,
-            program,
-        }
+        Self { mesh, program }
     }
 }
 
@@ -73,11 +57,7 @@ impl Scene for MainScene {
                 egui::Window::new("Hello").show(egui_ctx, |ui| {});
             });
             ctx.use_shader_program(&self.program);
-            ctx.draw_triangles(&self.vertex_array);
-            // ctx.gl.bind_vertex_array(Some(self.vertex_array.vao));
-            // ctx.gl
-            //     .draw_elements(glow::TRIANGLES, 3, glow::UNSIGNED_SHORT, 0);
-            // ctx.gl.draw_arrays(glow::TRIANGLES, 0, 3);
+            ctx.draw_mesh(&self.mesh);
             ctx.egui.paint(&ctx.window);
             ctx.gl_surface.swap_buffers(&ctx.gl_context).unwrap();
         }
