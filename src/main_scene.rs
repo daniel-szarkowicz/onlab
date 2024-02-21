@@ -32,7 +32,7 @@ impl MainScene {
 
             let ib = gl.create_buffer().unwrap();
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ib));
-            let indicies = [0, 1, 2];
+            let indicies = [0u16, 1, 2];
             gl.buffer_data_u8_slice(
                 glow::ELEMENT_ARRAY_BUFFER,
                 bytemuck::cast_slice(&indicies),
@@ -74,9 +74,9 @@ impl Scene for MainScene {
             });
             ctx.gl.use_program(Some(self.program));
             ctx.gl.bind_vertex_array(Some(self.vao));
-            // ctx.gl
-            //     .draw_elements(glow::TRIANGLES, 0, glow::UNSIGNED_SHORT, 0);
-            ctx.gl.draw_arrays(glow::TRIANGLES, 0, 3);
+            ctx.gl
+                .draw_elements(glow::TRIANGLES, 3, glow::UNSIGNED_SHORT, 0);
+            // ctx.gl.draw_arrays(glow::TRIANGLES, 0, 3);
             ctx.egui.paint(&ctx.window);
             ctx.gl_surface.swap_buffers(&ctx.gl_context).unwrap();
         }
