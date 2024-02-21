@@ -1,74 +1,29 @@
 use egui::DragValue;
 use glow::HasContext;
 use glutin::surface::GlSurface;
-use nalgebra::{Matrix4, Translation3};
-use winit::{
-    event::{DeviceEvent, Event},
-    window::CursorGrabMode,
-};
+use nalgebra::{Matrix4, Perspective3, Point3, Translation3, Vector3};
+use winit::event::{DeviceEvent, Event};
+use winit::window::CursorGrabMode;
 
-use crate::mesh::{DrawMesh, Mesh, MeshPrimitive};
+use crate::mesh::{DrawMesh, Mesh};
 use crate::shader_program::{ShaderProgram, UseShaderProgram};
 use crate::{scene::Scene, vertex::PNVertex, Context};
 
 pub struct MainScene {
     meshes: Vec<Mesh<PNVertex>>,
     program: ShaderProgram<PNVertex>,
+    aspect: f32,
     x: f32,
     y: f32,
+    camera_x: f32,
+    camera_y: f32,
+    camera_z: f32,
 }
 
 impl MainScene {
     pub fn new(ctx: &Context) -> Self {
         let mut meshes = Vec::new();
-        meshes.push(
-            Mesh::new(
-                ctx,
-                &[
-                    PNVertex {
-                        position: [0.0, 1.0, 0.0],
-                        normal: [0.0, 0.0, 1.0],
-                    },
-                    PNVertex {
-                        position: [1.0, 0.0, 0.0],
-                        normal: [0.0, 0.0, 1.0],
-                    },
-                    PNVertex {
-                        position: [0.0, 0.0, 0.0],
-                        normal: [0.0, 0.0, 1.0],
-                    },
-                ],
-                &[0, 1, 2],
-                MeshPrimitive::Triangles,
-            )
-            .unwrap(),
-        );
-        meshes.push(
-            Mesh::new(
-                ctx,
-                &[
-                    PNVertex {
-                        position: [0.0, 0.0, 0.0],
-                        normal: [0.0, 0.0, 1.0],
-                    },
-                    PNVertex {
-                        position: [-1.0, 0.0, 0.0],
-                        normal: [0.0, 0.0, 1.0],
-                    },
-                    PNVertex {
-                        position: [0.0, -1.0, 0.0],
-                        normal: [0.0, 0.0, 1.0],
-                    },
-                    PNVertex {
-                        position: [-1.0, -1.0, 0.0],
-                        normal: [0.0, 0.0, 1.0],
-                    },
-                ],
-                &[0, 1, 2, 2, 1, 3],
-                MeshPrimitive::Triangles,
-            )
-            .unwrap(),
-        );
+        meshes.push(crate::meshes::box_mesh(ctx).unwrap());
         let program =
             ShaderProgram::new(ctx, "src/test-vs.glsl", "src/test-fs.glsl")
                 .unwrap();
@@ -77,6 +32,10 @@ impl MainScene {
             program,
             x: 0.0,
             y: 0.0,
+            aspect: 1.0,
+            camera_x: 1.0,
+            camera_y: 1.0,
+            camera_z: 1.0,
         }
     }
 }
@@ -90,11 +49,17 @@ impl Scene for MainScene {
         // ctx.window.set_cursor_visible(false);
         unsafe {
             ctx.gl.clear_color(0.69, 0.0, 1.0, 1.0);
-            ctx.gl.clear(glow::COLOR_BUFFER_BIT);
+            ctx.gl
+                .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+            ctx.gl.enable(glow::DEPTH_TEST);
             ctx.egui.run(&ctx.window, |egui_ctx| {
                 egui::Window::new("Hello").show(egui_ctx, |ui| {
                     ui.add(DragValue::new(&mut self.x).speed(0.01));
                     ui.add(DragValue::new(&mut self.y).speed(0.01));
+                    ui.label("Camera position");
+                    ui.add(DragValue::new(&mut self.camera_x).speed(0.01));
+                    ui.add(DragValue::new(&mut self.camera_y).speed(0.01));
+                    ui.add(DragValue::new(&mut self.camera_z).speed(0.01));
                 });
             });
             ctx.use_shader_program(&self.program);
@@ -113,7 +78,13 @@ impl Scene for MainScene {
             let model_m =
                 Translation3::new(self.x, self.y, 0.0).to_homogeneous();
             let model_inv_m = model_m.try_inverse().unwrap();
-            let view_proj_m = Matrix4::identity();
+            let view_proj_m = Perspective3::new(self.aspect, 30.0, 0.1, 1000.0)
+                .as_matrix()
+                * Matrix4::look_at_rh(
+                    &Point3::new(self.camera_x, self.camera_y, self.camera_z),
+                    &Point3::new(0.0, 0.0, 0.0),
+                    &Vector3::new(0.0, -1.0, 0.0),
+                );
             ctx.gl.uniform_matrix_4_f32_slice(
                 Some(&model),
                 false,
@@ -144,6 +115,10 @@ impl Scene for MainScene {
     fn event<UserEvent>(&mut self, event: &Event<UserEvent>) -> bool {
         match event {
             Event::WindowEvent { event, .. } => match event {
+                winit::event::WindowEvent::Resized(size) => {
+                    self.aspect = size.width as f32 / size.height as f32;
+                    false
+                }
                 _ => false,
             },
             Event::DeviceEvent { event, .. } => {

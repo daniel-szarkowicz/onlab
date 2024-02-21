@@ -17,6 +17,7 @@ use winit::window::{Window, WindowBuilder};
 
 pub mod main_scene;
 pub mod mesh;
+pub mod meshes;
 pub mod scene;
 pub mod shader_program;
 pub mod vertex;
