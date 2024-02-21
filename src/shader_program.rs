@@ -13,6 +13,24 @@ pub struct ShaderProgram<V: Vertex> {
     phantom: PhantomData<V>,
 }
 
+unsafe fn load_shader(
+    gl: &glow::Context,
+    file: impl AsRef<Path>,
+    typ: u32,
+) -> Result<glow::NativeShader> {
+    let shader = gl.create_shader(typ).map_err(ShaderProgramError)?;
+    let f_name = file.as_ref().to_string_lossy().to_string();
+    gl.shader_source(shader, &fs::read_to_string(file)?);
+    gl.compile_shader(shader);
+    if !gl.get_shader_compile_status(shader) {
+        Err(ShaderProgramError(format!(
+            "Shader `{f_name}` was not compiled:\n{}",
+            gl.get_shader_info_log(shader)
+        )))?;
+    }
+    Ok(shader)
+}
+
 impl<V: Vertex> ShaderProgram<V> {
     pub fn new(
         ctx: &Context,
@@ -21,21 +39,21 @@ impl<V: Vertex> ShaderProgram<V> {
     ) -> Result<Self> {
         let program = unsafe {
             let gl = &ctx.gl;
-            let program = gl.create_program().map_err(ShaderProgramError)?;
-            let vertex = gl
-                .create_shader(glow::VERTEX_SHADER)
-                .map_err(ShaderProgramError)?;
-            gl.shader_source(vertex, &fs::read_to_string(vertex_file)?);
-            gl.compile_shader(vertex);
-            gl.attach_shader(program, vertex);
+            let vertex = load_shader(&gl, vertex_file, glow::VERTEX_SHADER)?;
+            let fragment =
+                load_shader(&gl, fragment_file, glow::FRAGMENT_SHADER)?;
 
-            let fragment = gl
-                .create_shader(glow::FRAGMENT_SHADER)
-                .map_err(ShaderProgramError)?;
-            gl.shader_source(fragment, &fs::read_to_string(fragment_file)?);
-            gl.compile_shader(fragment);
+            let program = gl.create_program().map_err(ShaderProgramError)?;
+            gl.attach_shader(program, vertex);
             gl.attach_shader(program, fragment);
             gl.link_program(program);
+            if !gl.get_program_link_status(program) {
+                Err(ShaderProgramError(format!(
+                    "Shader program was not linked:\n{}",
+                    gl.get_program_info_log(program)
+                )))?;
+            }
+            V::validate_layout(gl, program)?;
             program
         };
         Ok(Self {
