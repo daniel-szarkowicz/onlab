@@ -8,7 +8,8 @@ use anyhow::Result;
 use crate::{vertex::Vertex, Context};
 
 pub struct ShaderProgram<V: Vertex> {
-    program: NativeProgram,
+    // HACK make in private
+    pub program: NativeProgram,
     phantom: PhantomData<V>,
 }
 

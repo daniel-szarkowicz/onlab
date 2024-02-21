@@ -31,7 +31,7 @@ unsafe impl Vertex for PNVertex {
             3,
             glow::FLOAT,
             false,
-            2 * std::mem::size_of::<PNVertex>() as i32,
+            std::mem::size_of::<PNVertex>() as i32,
             std::mem::size_of::<[f32; 3]>() as i32,
         );
     }
