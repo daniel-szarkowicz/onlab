@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use anyhow::Result;
 use glutin::surface::GlSurface;
 use onlab::{Context, UserEvent};
@@ -11,6 +13,7 @@ fn main() -> Result<()> {
     let event_loop = EventLoopBuilder::with_user_event().build().unwrap();
     let mut ctx = Context::new(&event_loop);
     let mut scene = MainScene::new(&ctx);
+    let mut prev_time = Instant::now();
 
     event_loop.run(move |event, elwt| {
         if !scene.event(&event) {
@@ -42,6 +45,10 @@ fn main() -> Result<()> {
                                     elwt.exit()
                                 }
                                 winit::event::WindowEvent::RedrawRequested => {
+                                    let time = Instant::now();
+                                    let dt = time - prev_time;
+                                    prev_time = time;
+                                    scene.update(dt.as_secs_f32());
                                     scene.draw(&mut ctx);
                                 }
                                 _ => {}

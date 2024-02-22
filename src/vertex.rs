@@ -76,7 +76,6 @@ unsafe impl Vertex for PNVertex {
         use ShaderValidationError::*;
         unsafe {
             let attr_count = gl.get_active_attributes(program);
-            dbg!(attr_count);
             match attr_count.cmp(&2) {
                 Ordering::Less => Err(TooFewAttributes)?,
                 Ordering::Greater => Err(TooManyAttributes)?,

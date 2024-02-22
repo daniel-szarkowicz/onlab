@@ -74,7 +74,7 @@ pub fn sphere_mesh(ctx: &Context, resolution: u16) -> Result<Mesh<PNVertex>> {
             let i1 = (a + 1) % lat + b * lat;
             let i2 = i0 + lat;
             let i3 = i1 + lat;
-            indices.extend([i0, i1, i2, i2, i1, i3]);
+            indices.extend([i0, i1, i2 /*, i2, i1, i3*/]);
         }
     }
     Mesh::new(ctx, &vertices, &indices, MeshPrimitive::Triangles)
