@@ -9,14 +9,6 @@ pub struct FirstPersonCamera {
 }
 
 impl FirstPersonCamera {
-    pub fn new() -> Self {
-        Self {
-            position: Point3::new(0.0, 0.0, 0.0),
-            yaw: 0.0,
-            pitch: 0.0,
-        }
-    }
-
     pub fn position(&self) -> Point3<f32> {
         self.position
     }
@@ -49,5 +41,15 @@ impl FirstPersonCamera {
                 &self.look_at(),
                 &Vector3::y(),
             )
+    }
+}
+
+impl Default for FirstPersonCamera {
+    fn default() -> Self {
+        Self {
+            position: Point3::new(0.0, 0.0, 0.0),
+            yaw: 0.0,
+            pitch: 0.0,
+        }
     }
 }

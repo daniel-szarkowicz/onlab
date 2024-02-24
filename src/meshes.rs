@@ -50,7 +50,11 @@ pub fn box_mesh(ctx: &Context) -> Result<Mesh<PNVertex>> {
     Mesh::new(ctx, &vertices, &indices, MeshPrimitive::Triangles)
 }
 
-pub fn sphere_mesh(ctx: &Context, resolution: u16) -> Result<Mesh<PNVertex>> {
+pub fn sphere_mesh(
+    ctx: &Context,
+    resolution: u16,
+    half_triangles: bool,
+) -> Result<Mesh<PNVertex>> {
     let lat = resolution * 2;
     let lon = resolution;
     let mut vertices = Vec::with_capacity((lat * lon) as usize);
@@ -67,14 +71,19 @@ pub fn sphere_mesh(ctx: &Context, resolution: u16) -> Result<Mesh<PNVertex>> {
             });
         }
     }
-    let mut indices = Vec::with_capacity((lat * (lon - 1) * 6) as usize);
+    let mut indices = Vec::with_capacity(
+        (lat * (lon - 1)) as usize * if half_triangles { 3 } else { 6 },
+    );
     for b in 0..lon - 1 {
         for a in 0..lat {
             let i0 = a + b * lat;
             let i1 = (a + 1) % lat + b * lat;
             let i2 = i0 + lat;
             let i3 = i1 + lat;
-            indices.extend([i0, i1, i2 /*, i2, i1, i3*/]);
+            indices.extend([i0, i1, i2]);
+            if !half_triangles {
+                indices.extend([i2, i1, i3]);
+            }
         }
     }
     Mesh::new(ctx, &vertices, &indices, MeshPrimitive::Triangles)

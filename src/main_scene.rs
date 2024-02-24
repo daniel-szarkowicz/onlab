@@ -35,7 +35,7 @@ impl MainScene {
     pub fn new(ctx: &Context) -> Self {
         let mut objects = vec![];
         let box_mesh = Rc::new(meshes::box_mesh(ctx).unwrap());
-        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16).unwrap());
+        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, true).unwrap());
         for x in 0..10 {
             objects.push(Object {
                 mesh: box_mesh.clone(),
@@ -73,7 +73,7 @@ impl MainScene {
             right: false,
             up: false,
             down: false,
-            camera: FirstPersonCamera::new(),
+            camera: FirstPersonCamera::default(),
         }
     }
 }

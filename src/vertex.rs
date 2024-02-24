@@ -2,7 +2,16 @@ use bytemuck::{Pod, Zeroable};
 use glow::{HasContext, NativeProgram};
 use std::{cmp::Ordering, error::Error, fmt};
 
+/// # Safety
+/// These vertices will be uploaded byte-for-byte to the GPU,
+/// sometimes padding will be neccesary to conform with OpenGL's alignment.
+///
+/// The `set_layout` and `validate_layout` functions should match the layout
+/// of the struct. The `validate_layout` function can accept layouts that
+/// do not exactly match the layout of the struct, for example accepting
+/// a vec4 instead of a vec3 for a position vector.
 pub unsafe trait Vertex: Pod {
+    /// # Safety
     /// Should only be called when a glow::NativeVertexArray with matching
     /// vertex layout is bound.
     unsafe fn set_layout(gl: &glow::Context);

@@ -7,11 +7,6 @@ pub struct Ray {
     pub direction: Vector3<f32>,
 }
 
-pub struct Hit<T> {
-    pub position: Point3<f32>,
-    pub hitdata: T,
-}
-
 impl FirstPersonCamera {
     pub fn get_ray(&self) -> Ray {
         Ray {

@@ -87,6 +87,7 @@ impl fmt::Display for MeshError {
 impl Error for MeshError {}
 
 pub trait DrawMesh {
+    /// # Safety
     /// Should only be called if a shader with matching vertex layout is being
     /// used.
     unsafe fn draw_mesh<V: Vertex>(&self, mesh: &Mesh<V>);

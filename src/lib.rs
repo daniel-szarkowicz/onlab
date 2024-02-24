@@ -38,7 +38,7 @@ impl Context {
             .with_window_builder(Some(window_builder.clone()));
 
         let (window, gl_config) = display_builder
-            .build(&event_loop, template, |configs| {
+            .build(event_loop, template, |configs| {
                 configs.max_by_key(Config::num_samples).unwrap()
             })
             .unwrap();
@@ -59,7 +59,7 @@ impl Context {
 
         let window = window.unwrap_or_else(|| {
             glutin_winit::finalize_window(
-                &event_loop,
+                event_loop,
                 window_builder,
                 &gl_config,
             )
@@ -100,7 +100,7 @@ impl Context {
         let gl = Arc::new(gl);
 
         let egui_glow =
-            egui_glow::EguiGlow::new(&event_loop, gl.clone(), None, None);
+            egui_glow::EguiGlow::new(event_loop, gl.clone(), None, None);
 
         let event_loop_proxy = Mutex::new(event_loop.create_proxy());
         egui_glow.egui_ctx.set_request_repaint_callback(move |_| {

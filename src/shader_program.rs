@@ -39,9 +39,9 @@ impl<V: Vertex> ShaderProgram<V> {
     ) -> Result<Self> {
         let program = unsafe {
             let gl = &ctx.gl;
-            let vertex = load_shader(&gl, vertex_file, glow::VERTEX_SHADER)?;
+            let vertex = load_shader(gl, vertex_file, glow::VERTEX_SHADER)?;
             let fragment =
-                load_shader(&gl, fragment_file, glow::FRAGMENT_SHADER)?;
+                load_shader(gl, fragment_file, glow::FRAGMENT_SHADER)?;
 
             let program = gl.create_program().map_err(ShaderProgramError)?;
             gl.attach_shader(program, vertex);
@@ -75,6 +75,9 @@ impl fmt::Display for ShaderProgramError {
 impl Error for ShaderProgramError {}
 
 pub trait UseShaderProgram {
+    /// # Safety
+    /// All of the shader's uniforms should be set before calling a `draw`
+    /// funciton.
     unsafe fn use_shader_program<V: Vertex>(&self, program: &ShaderProgram<V>);
 }
 
