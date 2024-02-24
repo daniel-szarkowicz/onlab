@@ -16,10 +16,12 @@ use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
 
 pub mod camera;
+pub mod collider;
 pub mod main_scene;
 pub mod mesh;
 pub mod meshes;
 pub mod object;
+pub mod ray;
 pub mod scene;
 pub mod shader_program;
 pub mod vertex;

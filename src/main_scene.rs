@@ -3,14 +3,13 @@ use std::rc::Rc;
 use egui::DragValue;
 use glow::HasContext;
 use glutin::surface::GlSurface;
-use nalgebra::{
-    Matrix4, Perspective3, Point3, RealField, Rotation3, Translation3, Vector3,
-};
-use winit::event::{DeviceEvent, Event, KeyEvent, WindowEvent};
-use winit::keyboard::{Key, NamedKey, SmolStr};
+use nalgebra::{Point3, Rotation3, Vector3};
+use winit::event::{DeviceEvent, ElementState, Event, KeyEvent, WindowEvent};
+use winit::keyboard::{Key, NamedKey};
 use winit::window::CursorGrabMode;
 
 use crate::camera::FirstPersonCamera;
+use crate::collider::Collider;
 use crate::mesh::DrawMesh;
 use crate::meshes;
 use crate::object::Object;
@@ -40,15 +39,23 @@ impl MainScene {
         for x in 0..10 {
             objects.push(Object {
                 mesh: box_mesh.clone(),
+                collider: Collider::Box(1.0, 1.0, 1.0),
                 position: Point3::new(2.0 * x as f32, 0.0, 0.0),
                 rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
+                immovable: false,
+                momentum: Vector3::zeros(),
+                mass: 1.0,
             });
         }
         for x in 0..10 {
             objects.push(Object {
                 mesh: sphere_mesh.clone(),
+                collider: Collider::Sphere(1.0),
                 position: Point3::new(2.0 * x as f32, 2.0, 0.0),
                 rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
+                immovable: false,
+                momentum: Vector3::zeros(),
+                mass: 1.0,
             });
         }
         let program =
@@ -79,6 +86,7 @@ impl Scene for MainScene {
             .unwrap();
         // ctx.window.set_cursor_visible(false);
         unsafe {
+            ctx.gl.enable(glow::CULL_FACE);
             ctx.gl.clear_color(0.69, 0.0, 1.0, 1.0);
             ctx.gl
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
@@ -151,6 +159,9 @@ impl Scene for MainScene {
         if dir.magnitude() != 0.0 {
             self.camera.move_facing(dir.normalize() * delta * 3.0);
         }
+        for obj in &mut self.objects {
+            obj.update(delta);
+        }
     }
 
     fn event<UserEvent>(&mut self, event: &Event<UserEvent>) -> bool {
@@ -181,6 +192,28 @@ impl Scene for MainScene {
                             _ => {}
                         },
                         _ => {}
+                    }
+                    false
+                }
+                WindowEvent::MouseInput {
+                    state: ElementState::Pressed,
+                    ..
+                } => {
+                    let ray = self.camera.get_ray();
+                    if let Some((t, o)) = self
+                        .objects
+                        .iter_mut()
+                        .filter_map(|o| {
+                            o.collider
+                                .check_ray_hit(o.position, &ray)
+                                .map(|h| (h, o))
+                        })
+                        .min_by(|(h1, _), (h2, _)| h1.total_cmp(h2))
+                    {
+                        o.apply_impulse(
+                            ray.start + ray.direction * t,
+                            ray.direction,
+                        )
                     }
                     false
                 }

@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use nalgebra::{Matrix4, Perspective3, Point3, Rotation3, Vector3, Vector4};
+use nalgebra::{Matrix4, Perspective3, Point3, Rotation3, Vector3};
 
 pub struct FirstPersonCamera {
     position: Point3<f32>,
@@ -29,9 +29,12 @@ impl FirstPersonCamera {
         Rotation3::new(Vector3::x() * self.pitch / 180.0 * PI)
     }
 
+    pub fn look_direction(&self) -> Vector3<f32> {
+        self.yaw_rotation() * self.pitch_rotation() * Vector3::z()
+    }
+
     fn look_at(&self) -> Point3<f32> {
-        self.position
-            + self.yaw_rotation() * self.pitch_rotation() * Vector3::z()
+        self.position + self.look_direction()
     }
 
     pub fn move_facing(&mut self, direction: Vector3<f32>) {
