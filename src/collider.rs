@@ -30,12 +30,14 @@ impl Collider {
                     return None;
                 }
                 // t1 < t2;
-                let t1 = (-b - d.sqrt()) / a;
-                let t2 = (-b + d.sqrt()) / a;
+                let t1 = (-b - d.sqrt()) / (2.0 * a);
+                let t2 = (-b + d.sqrt()) / (2.0 * a);
                 if t1 >= 0.0 {
                     Some(t1)
-                } else {
+                } else if t2 >= 0.0 {
                     Some(t2)
+                } else {
+                    None
                 }
             }
             Box(w, h, d) => check_box_hit(
