@@ -65,16 +65,24 @@ impl Object {
     pub fn update(&mut self, delta: f32) {
         if !self.immovable {
             self.position += self.momentum * delta / self.mass;
-            let inverse_inertia = self.rotation
-                * self.inverse_body_inertia
-                * self.rotation.inverse();
             self.rotation = Rotation3::new(
-                inverse_inertia * self.angular_momentum * delta / self.mass,
+                self.inverse_inertia() * self.angular_momentum * delta
+                    / self.mass,
             ) * self.rotation;
         }
     }
 
     pub fn aabb(&self) -> (Point3<f32>, Point3<f32>) {
         self.collider.aabb(&self.position, &self.rotation)
+    }
+
+    pub fn inverse_inertia(&self) -> Matrix3<f32> {
+        self.rotation * self.inverse_body_inertia * self.rotation.inverse()
+    }
+
+    pub fn local_velocity(&self, position: Point3<f32>) -> Vector3<f32> {
+        self.momentum / self.mass
+            + (self.inverse_inertia() * self.angular_momentum)
+                .cross(&(position - self.position))
     }
 }

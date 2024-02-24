@@ -28,23 +28,31 @@ impl MainScene {
     pub fn new(ctx: &Context) -> Self {
         let mut objects = vec![];
         let box_mesh = Rc::new(meshes::box_mesh(ctx).unwrap());
-        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 64, true).unwrap());
+        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, true).unwrap());
         let bounding_box_mesh = meshes::bounding_box_mesh(ctx).unwrap();
         use Collider::*;
+        // for x in 0..10 {
+        //     objects.push(Object {
+        //         position: Point3::new(2.0 * x as f32, 0.0, 0.0),
+        //         rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
+        //         mesh_scale: Vector3::new(1.0, 20.0, 1.0),
+        //         ..Object::new(&box_mesh, Box(1.0, 20.0, 1.0), 1.0)
+        //     });
+        // }
         for x in 0..10 {
-            objects.push(Object {
-                position: Point3::new(2.0 * x as f32, 0.0, 0.0),
-                rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
-                mesh_scale: Vector3::new(1.0, 20.0, 1.0),
-                ..Object::new(&box_mesh, Box(1.0, 20.0, 1.0), 1.0)
-            });
-        }
-        for x in 0..10 {
-            objects.push(Object {
-                position: Point3::new(2.0 * x as f32, 2.0, 0.0),
-                rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
-                ..Object::new(&sphere_mesh, Sphere(1.0), 1.0)
-            });
+            for y in 0..10 {
+                for z in 0..10 {
+                    objects.push(Object {
+                        position: Point3::new(
+                            2.0 * x as f32,
+                            2.0 * y as f32,
+                            2.0 * z as f32,
+                        ),
+                        rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
+                        ..Object::new(&sphere_mesh, Sphere(1.0), 1.0)
+                    });
+                }
+            }
         }
         objects.push(Object {
             immovable: true,
@@ -189,7 +197,7 @@ impl Scene for MainScene {
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             ctx.gl.enable(glow::DEPTH_TEST);
             self.draw_phong(ctx);
-            self.draw_debug(ctx);
+            // self.draw_debug(ctx);
             ctx.egui.run(&ctx.window, |egui_ctx| {
                 Window::new("Hello").show(egui_ctx, |_| {});
             });
@@ -200,6 +208,50 @@ impl Scene for MainScene {
 
     fn update(&mut self, delta: f32) {
         self.camera.update(delta);
+        let epsilon = 1.0;
+        for i in 0..self.objects.len() {
+            for j in (i + 1)..self.objects.len() {
+                let (a, b) = self.objects.split_at_mut(j);
+                let o1 = &mut a[i];
+                let o2 = &mut b[0];
+                use Collider::*;
+                match (&o1.collider, &o2.collider) {
+                    (Sphere(r1), Sphere(r2)) => {
+                        // o2 -> o1
+                        let center_distance = o1.position - o2.position;
+                        if center_distance.magnitude() <= (r1 + r2) {
+                            let norm = center_distance.normalize();
+                            let p1 = o1.position - norm * *r1;
+                            let p2 = o2.position + norm * *r2;
+                            let v1 = o1.local_velocity(p1);
+                            let v2 = o2.local_velocity(p2);
+                            // o2 -> o1
+                            let dv = norm.dot(&(v1 - v2));
+                            if dv < 0.0 {
+                                let I = -(epsilon + 1.0) * dv
+                                    / (1.0 / o1.mass
+                                        + 1.0 / o2.mass
+                                        + norm.dot(
+                                            &(o1.inverse_inertia()
+                                                * (p1 - o1.position)
+                                                    .cross(&norm))
+                                            .cross(&(p1 - o1.position)),
+                                        )
+                                        + norm.dot(
+                                            &(o2.inverse_inertia()
+                                                * (p2 - o2.position)
+                                                    .cross(&norm))
+                                            .cross(&(p2 - o2.position)),
+                                        ));
+                                o1.apply_impulse(p1, I * norm);
+                                o2.apply_impulse(p2, -I * norm);
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
         for obj in &mut self.objects {
             obj.update(delta);
         }
@@ -231,7 +283,7 @@ impl Scene for MainScene {
                 {
                     o.apply_impulse(
                         ray.start + ray.direction * t,
-                        ray.direction,
+                        10.0 * ray.direction,
                     )
                 }
                 false
