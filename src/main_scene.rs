@@ -38,24 +38,17 @@ impl MainScene {
         let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, true).unwrap());
         for x in 0..10 {
             objects.push(Object {
-                mesh: box_mesh.clone(),
-                collider: Collider::Box(1.0, 1.0, 1.0),
                 position: Point3::new(2.0 * x as f32, 0.0, 0.0),
                 rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
-                immovable: false,
-                momentum: Vector3::zeros(),
-                mass: 1.0,
+                mesh_scale: Vector3::new(1.0, 20.0, 1.0),
+                ..Object::new(box_mesh.clone(), Collider::Box(1.0, 20.0, 1.0))
             });
         }
         for x in 0..10 {
             objects.push(Object {
-                mesh: sphere_mesh.clone(),
-                collider: Collider::Sphere(1.0),
                 position: Point3::new(2.0 * x as f32, 2.0, 0.0),
                 rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
-                immovable: false,
-                momentum: Vector3::zeros(),
-                mass: 1.0,
+                ..Object::new(sphere_mesh.clone(), Collider::Sphere(1.0))
             });
         }
         let program =
@@ -205,7 +198,7 @@ impl Scene for MainScene {
                         .iter_mut()
                         .filter_map(|o| {
                             o.collider
-                                .check_ray_hit(o.position, &ray)
+                                .check_ray_hit(o.position, o.rotation, &ray)
                                 .map(|h| (h, o))
                         })
                         .min_by(|(h1, _), (h2, _)| h1.total_cmp(h2))
