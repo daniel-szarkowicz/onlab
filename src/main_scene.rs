@@ -36,19 +36,20 @@ impl MainScene {
         let mut objects = vec![];
         let box_mesh = Rc::new(meshes::box_mesh(ctx).unwrap());
         let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, true).unwrap());
+        use Collider::*;
         for x in 0..10 {
             objects.push(Object {
                 position: Point3::new(2.0 * x as f32, 0.0, 0.0),
                 rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
                 mesh_scale: Vector3::new(1.0, 20.0, 1.0),
-                ..Object::new(box_mesh.clone(), Collider::Box(1.0, 20.0, 1.0))
+                ..Object::new(&box_mesh, Box(1.0, 20.0, 1.0))
             });
         }
         for x in 0..10 {
             objects.push(Object {
                 position: Point3::new(2.0 * x as f32, 2.0, 0.0),
                 rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
-                ..Object::new(sphere_mesh.clone(), Collider::Sphere(1.0))
+                ..Object::new(&sphere_mesh, Sphere(1.0))
             });
         }
         let program =

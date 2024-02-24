@@ -16,9 +16,9 @@ pub struct Object {
 }
 
 impl Object {
-    pub fn new(mesh: Rc<Mesh<PNVertex>>, collider: Collider) -> Self {
+    pub fn new(mesh: &Rc<Mesh<PNVertex>>, collider: Collider) -> Self {
         Self {
-            mesh,
+            mesh: mesh.clone(),
             collider,
             position: Point3::new(0.0, 0.0, 0.0),
             rotation: Rotation3::identity(),
