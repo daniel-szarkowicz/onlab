@@ -52,8 +52,14 @@ impl MainScene {
                 ..Object::new(&sphere_mesh, Sphere(1.0))
             });
         }
+        objects.push(Object {
+            immovable: true,
+            position: Point3::new(0.0, -1.0, 0.0),
+            mesh_scale: Vector3::new(10000.0, 1.0, 10000.0),
+            ..Object::new(&box_mesh, Box(10000.0, 1.0, 10000.0))
+        });
         let program =
-            ShaderProgram::new(ctx, "src/test-vs.glsl", "src/test-fs.glsl")
+            ShaderProgram::new(ctx, "src/phong-vs.glsl", "src/phong-fs.glsl")
                 .unwrap();
         Self {
             objects,
@@ -104,11 +110,19 @@ impl Scene for MainScene {
                 .gl
                 .get_uniform_location(self.program.program, "view_proj")
                 .unwrap();
+            let w_eye = ctx
+                .gl
+                .get_uniform_location(self.program.program, "wEye")
+                .unwrap();
             let view_proj_m = self.camera.view_proj(self.aspect);
             ctx.gl.uniform_matrix_4_f32_slice(
                 Some(&view_proj),
                 false,
                 view_proj_m.as_slice(),
+            );
+            ctx.gl.uniform_3_f32_slice(
+                Some(&w_eye),
+                self.camera.position().coords.as_slice(),
             );
             for object in &self.objects {
                 let model_m = object.model();
