@@ -1,11 +1,10 @@
 use std::rc::Rc;
 
-use egui::DragValue;
+use egui::Window;
 use glow::HasContext;
 use glutin::surface::GlSurface;
 use nalgebra::{Point3, Rotation3, Scale3, Translation3, Vector3};
-use winit::event::{DeviceEvent, ElementState, Event, KeyEvent, WindowEvent};
-use winit::keyboard::{Key, NamedKey};
+use winit::event::{ElementState, Event, WindowEvent};
 use winit::window::CursorGrabMode;
 
 use crate::camera::FirstPersonCamera;
@@ -21,15 +20,6 @@ pub struct MainScene {
     objects: Vec<Object>,
     phong_shader_program: ShaderProgram<PNVertex>,
     debug_shader_program: ShaderProgram<PVertex>,
-    aspect: f32,
-    x: f32,
-    y: f32,
-    forwards: bool,
-    backwards: bool,
-    left: bool,
-    right: bool,
-    up: bool,
-    down: bool,
     camera: FirstPersonCamera,
     bounding_box_mesh: Mesh<PVertex>,
 }
@@ -38,7 +28,7 @@ impl MainScene {
     pub fn new(ctx: &Context) -> Self {
         let mut objects = vec![];
         let box_mesh = Rc::new(meshes::box_mesh(ctx).unwrap());
-        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 64, false).unwrap());
+        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 64, true).unwrap());
         let bounding_box_mesh = meshes::bounding_box_mesh(ctx).unwrap();
         use Collider::*;
         for x in 0..10 {
@@ -75,15 +65,6 @@ impl MainScene {
             objects,
             phong_shader_program,
             debug_shader_program,
-            x: 0.0,
-            y: 0.0,
-            aspect: 1.0,
-            forwards: false,
-            backwards: false,
-            left: false,
-            right: false,
-            up: false,
-            down: false,
             camera: FirstPersonCamera::default(),
             bounding_box_mesh,
         }
@@ -117,7 +98,7 @@ impl MainScene {
                 .gl
                 .get_uniform_location(self.phong_shader_program.program, "wEye")
                 .unwrap();
-            let view_proj_m = self.camera.view_proj(self.aspect);
+            let view_proj_m = self.camera.view_proj();
             ctx.gl.uniform_matrix_4_f32_slice(
                 Some(&view_proj),
                 false,
@@ -162,7 +143,7 @@ impl MainScene {
                     "view_proj",
                 )
                 .unwrap();
-            let view_proj_m = self.camera.view_proj(self.aspect);
+            let view_proj_m = self.camera.view_proj();
             ctx.gl.uniform_matrix_4_f32_slice(
                 Some(&view_proj),
                 false,
@@ -207,113 +188,54 @@ impl Scene for MainScene {
             ctx.gl
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             ctx.gl.enable(glow::DEPTH_TEST);
-            ctx.egui.run(&ctx.window, |egui_ctx| {
-                egui::Window::new("Hello").show(egui_ctx, |ui| {
-                    ui.add(DragValue::new(&mut self.x).speed(0.01));
-                    ui.add(DragValue::new(&mut self.y).speed(0.01));
-                });
-            });
             self.draw_phong(ctx);
             self.draw_debug(ctx);
-            ctx.use_shader_program(&self.debug_shader_program);
+            ctx.egui.run(&ctx.window, |egui_ctx| {
+                Window::new("Hello").show(egui_ctx, |_| {});
+            });
             ctx.egui.paint(&ctx.window);
             ctx.gl_surface.swap_buffers(&ctx.gl_context).unwrap();
         }
     }
 
     fn update(&mut self, delta: f32) {
-        let mut dir = Vector3::zeros();
-        if self.forwards {
-            dir.z += 1.0
-        }
-        if self.backwards {
-            dir.z -= 1.0
-        }
-        if self.left {
-            dir.x += 1.0
-        }
-        if self.right {
-            dir.x -= 1.0
-        }
-        if self.up {
-            dir.y += 1.0
-        }
-        if self.down {
-            dir.y -= 1.0
-        }
-        if dir.magnitude() != 0.0 {
-            self.camera.move_facing(dir.normalize() * delta * 3.0);
-        }
+        self.camera.update(delta);
         for obj in &mut self.objects {
             obj.update(delta);
         }
     }
 
     fn event<UserEvent>(&mut self, event: &Event<UserEvent>) -> bool {
+        if self.camera.event(event) {
+            return true;
+        }
         match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::Resized(size) => {
-                    self.aspect = size.width as f32 / size.height as f32;
-                    false
-                }
-                WindowEvent::KeyboardInput {
-                    event:
-                        KeyEvent {
-                            logical_key, state, ..
-                        },
-                    ..
-                } => {
-                    match logical_key {
-                        Key::Character(ch) => match ch.as_str() {
-                            "w" | "W" => self.forwards = state.is_pressed(),
-                            "s" | "S" => self.backwards = state.is_pressed(),
-                            "a" | "A" => self.left = state.is_pressed(),
-                            "d" | "D" => self.right = state.is_pressed(),
-                            _ => {}
-                        },
-                        Key::Named(key) => match key {
-                            NamedKey::Shift => self.down = state.is_pressed(),
-                            NamedKey::Space => self.up = state.is_pressed(),
-                            _ => {}
-                        },
-                        _ => {}
-                    }
-                    false
-                }
-                WindowEvent::MouseInput {
-                    state: ElementState::Pressed,
-                    ..
-                } => {
-                    let ray = self.camera.get_ray();
-                    if let Some((t, o)) = self
-                        .objects
-                        .iter_mut()
-                        .filter_map(|o| {
-                            o.collider
-                                .check_ray_hit(o.position, o.rotation, &ray)
-                                .map(|h| (h, o))
-                        })
-                        .min_by(|(h1, _), (h2, _)| h1.total_cmp(h2))
-                    {
-                        o.apply_impulse(
-                            ray.start + ray.direction * t,
-                            ray.direction,
-                        )
-                    }
-                    false
-                }
-                _ => false,
-            },
-            Event::DeviceEvent { event, .. } => {
-                if let DeviceEvent::MouseMotion { delta } = event {
-                    self.camera.yaw -= delta.0 as f32 * 0.15;
-                    self.camera.pitch = (self.camera.pitch
-                        + delta.1 as f32 * 0.15)
-                        .clamp(-89.0, 89.0);
+            Event::WindowEvent {
+                event:
+                    WindowEvent::MouseInput {
+                        state: ElementState::Pressed,
+                        ..
+                    },
+                ..
+            } => {
+                let ray = self.camera.get_ray();
+                if let Some((t, o)) = self
+                    .objects
+                    .iter_mut()
+                    .filter_map(|o| {
+                        o.collider
+                            .check_ray_hit(o.position, o.rotation, &ray)
+                            .map(|h| (h, o))
+                    })
+                    .min_by(|(h1, _), (h2, _)| h1.total_cmp(h2))
+                {
+                    o.apply_impulse(
+                        ray.start + ray.direction * t,
+                        ray.direction,
+                    )
                 }
                 false
             }
-
             _ => false,
         }
     }
