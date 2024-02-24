@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use anyhow::Result;
 
 use crate::mesh::{Mesh, MeshPrimitive};
-use crate::vertex::PNVertex;
+use crate::vertex::{PNVertex, PVertex};
 use crate::Context;
 
 #[rustfmt::skip]
@@ -87,4 +87,25 @@ pub fn sphere_mesh(
         }
     }
     Mesh::new(ctx, &vertices, &indices, MeshPrimitive::Triangles)
+}
+
+#[rustfmt::skip]
+pub fn bounding_box_mesh(ctx: &Context) -> Result<Mesh<PVertex>> {
+    let vertices = [
+       PVertex { position: [ 0.5,  0.5,  0.5] },
+       PVertex { position: [-0.5,  0.5,  0.5] },
+       PVertex { position: [ 0.5, -0.5,  0.5] },
+       PVertex { position: [-0.5, -0.5,  0.5] },
+
+       PVertex { position: [-0.5,  0.5, -0.5] },
+       PVertex { position: [ 0.5,  0.5, -0.5] },
+       PVertex { position: [-0.5, -0.5, -0.5] },
+       PVertex { position: [ 0.5, -0.5, -0.5] },
+    ];
+    let indices = [
+        0, 1, 1, 3, 3, 2, 2, 0,
+        4, 5, 5, 7, 7, 6, 6, 4,
+        0, 5, 1, 4, 3, 6, 2, 7,
+    ];
+    Mesh::new(ctx, &vertices, &indices, MeshPrimitive::Lines)
 }

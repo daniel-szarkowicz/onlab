@@ -112,3 +112,48 @@ unsafe impl Vertex for PNVertex {
         }
     }
 }
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable, Debug)]
+pub struct PVertex {
+    pub position: [f32; 3],
+}
+
+unsafe impl Vertex for PVertex {
+    unsafe fn set_layout(gl: &glow::Context) {
+        gl.enable_vertex_attrib_array(0);
+        gl.vertex_attrib_pointer_f32(
+            0,
+            3,
+            glow::FLOAT,
+            false,
+            std::mem::size_of::<Self>() as i32,
+            0,
+        );
+    }
+
+    fn validate_layout(
+        gl: &glow::Context,
+        program: NativeProgram,
+    ) -> Result<(), ShaderValidationError> {
+        use ShaderValidationError::*;
+        unsafe {
+            let attr_count = gl.get_active_attributes(program);
+            match attr_count.cmp(&1) {
+                Ordering::Less => Err(TooFewAttributes)?,
+                Ordering::Greater => Err(TooManyAttributes)?,
+                Ordering::Equal => {}
+            }
+            let attr = gl
+                .get_active_attribute(program, 0)
+                .expect("Attribute cannot be None here.");
+            if ![glow::FLOAT_VEC3, glow::FLOAT_VEC4].contains(&attr.atype) {
+                Err(TypeMismatch {
+                    location: 0,
+                    attr_name: attr.name,
+                })?;
+            }
+            Ok(())
+        }
+    }
+}

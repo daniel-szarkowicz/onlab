@@ -3,22 +3,24 @@ use std::rc::Rc;
 use egui::DragValue;
 use glow::HasContext;
 use glutin::surface::GlSurface;
-use nalgebra::{Point3, Rotation3, Vector3};
+use nalgebra::{Point3, Rotation3, Scale3, Translation3, Vector3};
 use winit::event::{DeviceEvent, ElementState, Event, KeyEvent, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::CursorGrabMode;
 
 use crate::camera::FirstPersonCamera;
 use crate::collider::Collider;
-use crate::mesh::DrawMesh;
+use crate::mesh::{DrawMesh, Mesh};
 use crate::meshes;
 use crate::object::Object;
 use crate::shader_program::{ShaderProgram, UseShaderProgram};
+use crate::vertex::PVertex;
 use crate::{scene::Scene, vertex::PNVertex, Context};
 
 pub struct MainScene {
     objects: Vec<Object>,
-    program: ShaderProgram<PNVertex>,
+    phong_shader_program: ShaderProgram<PNVertex>,
+    debug_shader_program: ShaderProgram<PVertex>,
     aspect: f32,
     x: f32,
     y: f32,
@@ -29,41 +31,50 @@ pub struct MainScene {
     up: bool,
     down: bool,
     camera: FirstPersonCamera,
+    bounding_box_mesh: Mesh<PVertex>,
 }
 
 impl MainScene {
     pub fn new(ctx: &Context) -> Self {
         let mut objects = vec![];
         let box_mesh = Rc::new(meshes::box_mesh(ctx).unwrap());
-        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, true).unwrap());
+        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 64, false).unwrap());
+        let bounding_box_mesh = meshes::bounding_box_mesh(ctx).unwrap();
         use Collider::*;
         for x in 0..10 {
             objects.push(Object {
                 position: Point3::new(2.0 * x as f32, 0.0, 0.0),
                 rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
                 mesh_scale: Vector3::new(1.0, 20.0, 1.0),
-                ..Object::new(&box_mesh, Box(1.0, 20.0, 1.0))
+                ..Object::new(&box_mesh, Box(1.0, 20.0, 1.0), 1.0)
             });
         }
         for x in 0..10 {
             objects.push(Object {
                 position: Point3::new(2.0 * x as f32, 2.0, 0.0),
                 rotation: Rotation3::new(Vector3::new(x as f32, 0.0, 0.0)),
-                ..Object::new(&sphere_mesh, Sphere(1.0))
+                ..Object::new(&sphere_mesh, Sphere(1.0), 1.0)
             });
         }
         objects.push(Object {
             immovable: true,
             position: Point3::new(0.0, -1.0, 0.0),
             mesh_scale: Vector3::new(10000.0, 1.0, 10000.0),
-            ..Object::new(&box_mesh, Box(10000.0, 1.0, 10000.0))
+            ..Object::new(&box_mesh, Box(10000.0, 1.0, 10000.0), 1.0)
         });
-        let program =
+        let phong_shader_program =
             ShaderProgram::new(ctx, "src/phong-vs.glsl", "src/phong-fs.glsl")
                 .unwrap();
+        let debug_shader_program = ShaderProgram::new(
+            ctx,
+            "src/simple-vs.glsl",
+            "src/simple_color-fs.glsl",
+        )
+        .unwrap();
         Self {
             objects,
-            program,
+            phong_shader_program,
+            debug_shader_program,
             x: 0.0,
             y: 0.0,
             aspect: 1.0,
@@ -74,45 +85,37 @@ impl MainScene {
             up: false,
             down: false,
             camera: FirstPersonCamera::default(),
+            bounding_box_mesh,
         }
     }
-}
 
-impl Scene for MainScene {
-    fn draw(&mut self, ctx: &mut Context) {
-        ctx.window
-            .set_cursor_grab(CursorGrabMode::Confined)
-            .or_else(|_| ctx.window.set_cursor_grab(CursorGrabMode::Locked))
-            .unwrap();
-        // ctx.window.set_cursor_visible(false);
+    fn draw_phong(&self, ctx: &mut Context) {
         unsafe {
-            ctx.gl.enable(glow::CULL_FACE);
-            ctx.gl.clear_color(0.69, 0.0, 1.0, 1.0);
-            ctx.gl
-                .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
-            ctx.gl.enable(glow::DEPTH_TEST);
-            ctx.egui.run(&ctx.window, |egui_ctx| {
-                egui::Window::new("Hello").show(egui_ctx, |ui| {
-                    ui.add(DragValue::new(&mut self.x).speed(0.01));
-                    ui.add(DragValue::new(&mut self.y).speed(0.01));
-                });
-            });
-            ctx.use_shader_program(&self.program);
+            ctx.use_shader_program(&self.phong_shader_program);
             let model = ctx
                 .gl
-                .get_uniform_location(self.program.program, "model")
+                .get_uniform_location(
+                    self.phong_shader_program.program,
+                    "model",
+                )
                 .unwrap();
             let model_inv = ctx
                 .gl
-                .get_uniform_location(self.program.program, "model_inv")
+                .get_uniform_location(
+                    self.phong_shader_program.program,
+                    "model_inv",
+                )
                 .unwrap();
             let view_proj = ctx
                 .gl
-                .get_uniform_location(self.program.program, "view_proj")
+                .get_uniform_location(
+                    self.phong_shader_program.program,
+                    "view_proj",
+                )
                 .unwrap();
             let w_eye = ctx
                 .gl
-                .get_uniform_location(self.program.program, "wEye")
+                .get_uniform_location(self.phong_shader_program.program, "wEye")
                 .unwrap();
             let view_proj_m = self.camera.view_proj(self.aspect);
             ctx.gl.uniform_matrix_4_f32_slice(
@@ -139,6 +142,80 @@ impl Scene for MainScene {
                 );
                 ctx.draw_mesh(&object.mesh);
             }
+        }
+    }
+
+    fn draw_debug(&self, ctx: &mut Context) {
+        unsafe {
+            ctx.use_shader_program(&self.debug_shader_program);
+            let model = ctx
+                .gl
+                .get_uniform_location(
+                    self.debug_shader_program.program,
+                    "model",
+                )
+                .unwrap();
+            let view_proj = ctx
+                .gl
+                .get_uniform_location(
+                    self.debug_shader_program.program,
+                    "view_proj",
+                )
+                .unwrap();
+            let view_proj_m = self.camera.view_proj(self.aspect);
+            ctx.gl.uniform_matrix_4_f32_slice(
+                Some(&view_proj),
+                false,
+                view_proj_m.as_slice(),
+            );
+            let color = ctx
+                .gl
+                .get_uniform_location(
+                    self.debug_shader_program.program,
+                    "color",
+                )
+                .unwrap();
+            for object in &self.objects {
+                let (min, max) = object.aabb();
+                let size = max - min;
+                let pos = min + size / 2.0;
+                let model_m = Translation3::from(pos).to_homogeneous()
+                    * Scale3::from(size).to_homogeneous();
+
+                ctx.gl.uniform_matrix_4_f32_slice(
+                    Some(&model),
+                    false,
+                    model_m.as_slice(),
+                );
+                ctx.gl.uniform_3_f32_slice(Some(&color), &[1.0, 0.0, 0.0]);
+                ctx.draw_mesh(&self.bounding_box_mesh);
+            }
+        }
+    }
+}
+
+impl Scene for MainScene {
+    fn draw(&mut self, ctx: &mut Context) {
+        ctx.window
+            .set_cursor_grab(CursorGrabMode::Confined)
+            .or_else(|_| ctx.window.set_cursor_grab(CursorGrabMode::Locked))
+            .unwrap();
+        // ctx.window.set_cursor_visible(false);
+        unsafe {
+            ctx.gl.enable(glow::CULL_FACE);
+            ctx.gl.clear_color(0.69, 0.0, 1.0, 1.0);
+            ctx.gl
+                .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+            ctx.gl.enable(glow::DEPTH_TEST);
+            ctx.egui.run(&ctx.window, |egui_ctx| {
+                egui::Window::new("Hello").show(egui_ctx, |ui| {
+                    ui.add(DragValue::new(&mut self.x).speed(0.01));
+                    ui.add(DragValue::new(&mut self.y).speed(0.01));
+                });
+            });
+            self.draw_phong(ctx);
+            self.draw_debug(ctx);
+            ctx.use_shader_program(&self.debug_shader_program);
             ctx.egui.paint(&ctx.window);
             ctx.gl_surface.swap_buffers(&ctx.gl_context).unwrap();
         }

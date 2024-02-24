@@ -1,5 +1,5 @@
 use nalgebra::{
-    Matrix4, Point3, Rotation3, Scale3, Translation3, Vector3, Vector4,
+    Matrix3, Matrix4, Point3, Rotation3, Scale3, Translation3, Vector3, Vector4,
 };
 
 use crate::ray::Ray;
@@ -43,6 +43,50 @@ impl Collider {
                     * Scale3::new(*w, *h, *d).to_homogeneous(),
                 ray,
             ),
+        }
+    }
+
+    pub fn inverse_inertia(&self, mass: f32) -> Matrix3<f32> {
+        use Collider::*;
+        match &self {
+            Sphere(r) => Matrix3::identity() * 2.0 / 3.0 * mass * (r * r),
+            #[rustfmt::skip]
+            Box(w, h, d) => Matrix3::new(
+                mass / 12.0 * (h * h + d * d), 0.0, 0.0,
+                0.0, mass / 12.0 * (d * d + w * w), 0.0,
+                0.0, 0.0, mass / 12.0 * (w * w + h * h)
+            ),
+        }
+        .try_inverse()
+        .expect("Inertia tensor should be invertible")
+    }
+
+    pub fn aabb(
+        &self,
+        position: &Point3<f32>,
+        rotation: &Rotation3<f32>,
+    ) -> (Point3<f32>, Point3<f32>) {
+        use Collider::*;
+        match self {
+            Sphere(r) => (
+                position + Vector3::new(-r, -r, -r),
+                position + Vector3::new(*r, *r, *r),
+            ),
+            Box(w, h, d) => {
+                let mut min = *position;
+                let mut max = *position;
+                for x in [-0.5, 0.5] {
+                    for y in [-0.5, 0.5] {
+                        for z in [-0.5, 0.5] {
+                            let p = position
+                                + rotation * Vector3::new(x * w, y * h, z * d);
+                            min = min.inf(&p);
+                            max = max.sup(&p);
+                        }
+                    }
+                }
+                (min, max)
+            }
         }
     }
 }
