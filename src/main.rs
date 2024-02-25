@@ -10,9 +10,9 @@ use onlab::scene::Scene;
 use winit::event_loop::EventLoopBuilder;
 
 fn main() -> Result<()> {
-    let event_loop = EventLoopBuilder::with_user_event().build().unwrap();
+    let event_loop = EventLoopBuilder::with_user_event().build()?;
     let mut ctx = Context::new(&event_loop);
-    let mut scene = MainScene::new(&ctx);
+    let mut scene = MainScene::new(&ctx)?;
     let mut prev_time = Instant::now();
 
     event_loop.run(move |event, elwt| {

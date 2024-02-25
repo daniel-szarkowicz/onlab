@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use anyhow::Result;
 use egui::Window;
 use glow::HasContext;
 use glutin::surface::GlSurface;
@@ -25,11 +26,11 @@ pub struct MainScene {
 }
 
 impl MainScene {
-    pub fn new(ctx: &Context) -> Self {
+    pub fn new(ctx: &Context) -> Result<Self> {
         let mut objects = vec![];
-        let box_mesh = Rc::new(meshes::box_mesh(ctx).unwrap());
-        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, true).unwrap());
-        let bounding_box_mesh = meshes::bounding_box_mesh(ctx).unwrap();
+        let box_mesh = Rc::new(meshes::box_mesh(ctx)?);
+        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, true)?);
+        let bounding_box_mesh = meshes::bounding_box_mesh(ctx)?;
         use Collider::*;
         // for x in 0..10 {
         //     objects.push(Object {
@@ -61,21 +62,19 @@ impl MainScene {
             ..Object::new(&box_mesh, Box(10000.0, 1.0, 10000.0), 1.0)
         });
         let phong_shader_program =
-            ShaderProgram::new(ctx, "src/phong-vs.glsl", "src/phong-fs.glsl")
-                .unwrap();
+            ShaderProgram::new(ctx, "src/phong-vs.glsl", "src/phong-fs.glsl")?;
         let debug_shader_program = ShaderProgram::new(
             ctx,
             "src/simple-vs.glsl",
             "src/simple_color-fs.glsl",
-        )
-        .unwrap();
-        Self {
+        )?;
+        Ok(Self {
             objects,
             phong_shader_program,
             debug_shader_program,
             camera: FirstPersonCamera::default(),
             bounding_box_mesh,
-        }
+        })
     }
 
     fn draw_phong(&self, ctx: &mut Context) {
