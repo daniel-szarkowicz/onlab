@@ -47,9 +47,11 @@ fn main() -> Result<()> {
                                 winit::event::WindowEvent::RedrawRequested => {
                                     let time = Instant::now();
                                     let dt = time - prev_time;
+                                    // println!("fps {}", 1.0 / dt.as_secs_f32());
                                     prev_time = time;
                                     scene.update(dt.as_secs_f32());
                                     scene.draw(&mut ctx);
+                                    ctx.window.request_redraw();
                                 }
                                 _ => {}
                             }
@@ -63,6 +65,5 @@ fn main() -> Result<()> {
             }
         }
     })?;
-    println!("Hello, world!");
     Ok(())
 }

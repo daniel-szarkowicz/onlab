@@ -109,3 +109,17 @@ pub fn bounding_box_mesh(ctx: &Context) -> Result<Mesh<PVertex>> {
     ];
     Mesh::new(ctx, &vertices, &indices, MeshPrimitive::Lines)
 }
+
+#[rustfmt::skip]
+pub fn rectangle_mesh(ctx: &Context) -> Result<Mesh<PVertex>> {
+    let vertices = [
+       PVertex { position: [ 0.5,  0.5,  0.0] },
+       PVertex { position: [-0.5,  0.5,  0.0] },
+       PVertex { position: [ 0.5, -0.5,  0.0] },
+       PVertex { position: [-0.5, -0.5,  0.0] },
+    ];
+    let indices = [
+        0, 1, 2, 2, 1, 3
+    ];
+    Mesh::new(ctx, &vertices, &indices, MeshPrimitive::Triangles)
+}

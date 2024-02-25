@@ -13,6 +13,7 @@ pub struct FirstPersonCamera {
     up: bool,
     down: bool,
     fast: bool,
+    focus: bool,
     aspect: f32,
     pub yaw: f32,
     pub pitch: f32,
@@ -74,11 +75,16 @@ impl FirstPersonCamera {
         }
     }
 
+    pub fn focus(&self) -> bool {
+        self.focus
+    }
+
     pub fn event<T>(&mut self, event: &Event<T>) -> bool {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::Resized(size) => {
-                    self.aspect = size.width as f32 / size.height as f32
+                    self.aspect = size.width as f32 / size.height as f32;
+                    false
                 }
                 WindowEvent::KeyboardInput {
                     event:
@@ -88,33 +94,58 @@ impl FirstPersonCamera {
                     ..
                 } => match logical_key {
                     Key::Character(ch) => match ch.as_str() {
-                        "w" | "W" => self.forwards = state.is_pressed(),
-                        "s" | "S" => self.backwards = state.is_pressed(),
-                        "a" | "A" => self.left = state.is_pressed(),
-                        "d" | "D" => self.right = state.is_pressed(),
-                        _ => {}
+                        "w" | "W" if self.focus => {
+                            self.forwards = state.is_pressed();
+                            true
+                        }
+                        "s" | "S" if self.focus => {
+                            self.backwards = state.is_pressed();
+                            true
+                        }
+                        "a" | "A" if self.focus => {
+                            self.left = state.is_pressed();
+                            true
+                        }
+                        "d" | "D" if self.focus => {
+                            self.right = state.is_pressed();
+                            true
+                        }
+                        _ => false,
                     },
                     Key::Named(key) => match key {
-                        NamedKey::Shift => self.down = state.is_pressed(),
-                        NamedKey::Space => self.up = state.is_pressed(),
-                        NamedKey::Control => self.fast = state.is_pressed(),
-                        _ => {}
+                        NamedKey::Shift if self.focus => {
+                            self.down = state.is_pressed();
+                            true
+                        }
+                        NamedKey::Space if self.focus => {
+                            self.up = state.is_pressed();
+                            true
+                        }
+                        NamedKey::Control if self.focus => {
+                            self.fast = state.is_pressed();
+                            true
+                        }
+                        NamedKey::Escape if state.is_pressed() => {
+                            self.focus = !self.focus;
+                            true
+                        }
+                        _ => false,
                     },
-                    _ => {}
+                    _ => false,
                 },
-                _ => {}
+                _ => false,
             },
             Event::DeviceEvent {
                 event: DeviceEvent::MouseMotion { delta },
                 ..
-            } => {
+            } if self.focus => {
                 self.yaw -= delta.0 as f32 * 0.15;
                 self.pitch =
                     (self.pitch + delta.1 as f32 * 0.15).clamp(-89.9, 89.9);
+                false
             }
-            _ => {}
+            _ => false,
         }
-        false
     }
 
     pub fn get_ray(&self) -> Ray {
@@ -136,6 +167,7 @@ impl Default for FirstPersonCamera {
             left: false,
             right: false,
             fast: false,
+            focus: false,
             up: false,
             down: false,
             aspect: 1.0,
