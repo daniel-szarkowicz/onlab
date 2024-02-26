@@ -1,8 +1,8 @@
 #version 430
 
-uniform vec3 kd = vec3(1, 1, 1);
+uniform vec3 kd = vec3(0.8, 0.8, 0.8);
 uniform vec3 ks = vec3(0.2, 0.2, 0.3);
-uniform vec3 ka = vec3(0.1, 0.1, 0.1);
+uniform vec3 ka = vec3(0.3, 0.3, 0.3);
 uniform float shine = 10;
 uniform vec3 La = vec3(1, 1, 1);
 uniform vec3 Le = vec3(1, 1, 1);
