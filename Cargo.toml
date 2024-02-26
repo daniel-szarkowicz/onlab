@@ -17,3 +17,36 @@ nalgebra = "0.32.4"
 raw-window-handle = "0.5.2"
 winit = { version = "0.29.10", features = [ "wayland" ] }
 
+[profile.release]
+opt-level = 3
+lto = true
+
+[lints.rust]
+let_underscore_drop = "warn"
+# missing_copy_implementations = "warn"
+missing_debug_implementations = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unit_bindings = "warn"
+# unnameable_types = "deny"
+unreachable_pub = "warn"
+unsafe_op_in_unsafe_fn = "deny"
+# unused_crate_dependencies = "warn"
+unused_extern_crates = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_macro_rules = "warn"
+unused_qualifications = "warn"
+unused_tuple_struct_fields = "warn"
+variant_size_differences = "warn"
+
+
+[lints.clippy]
+pedantic = "warn"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+nursery = "warn"
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+suboptimal_flops = "allow"
+module_name_repetitions = "allow"

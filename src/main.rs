@@ -38,11 +38,9 @@ fn main() -> Result<()> {
                                             .expect("Screen height is zero!"),
                                     );
                                 }
-                                winit::event::WindowEvent::CloseRequested => {
-                                    elwt.exit()
-                                }
-                                winit::event::WindowEvent::Destroyed => {
-                                    elwt.exit()
+                                winit::event::WindowEvent::CloseRequested
+                                | winit::event::WindowEvent::Destroyed => {
+                                    elwt.exit();
                                 }
                                 winit::event::WindowEvent::RedrawRequested => {
                                     let time = Instant::now();

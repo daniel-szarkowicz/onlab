@@ -12,7 +12,7 @@ use std::{cmp::Ordering, error::Error, fmt};
 /// a vec4 instead of a vec3 for a position vector.
 pub unsafe trait Vertex: Pod {
     /// # Safety
-    /// Should only be called when a glow::NativeVertexArray with matching
+    /// Should only be called when a `glow::NativeVertexArray` with matching
     /// vertex layout is bound.
     unsafe fn set_layout(gl: &glow::Context);
 
@@ -32,7 +32,9 @@ pub enum ShaderValidationError {
 
 impl fmt::Display for ShaderValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use ShaderValidationError::*;
+        use ShaderValidationError::{
+            TooFewAttributes, TooManyAttributes, TypeMismatch,
+        };
         match self {
             TooFewAttributes => write!(f, "Shader has too few attibutes!"),
             TooManyAttributes => write!(f, "Shader has too many attributes!"),
@@ -57,32 +59,37 @@ pub struct PNVertex {
 }
 
 unsafe impl Vertex for PNVertex {
+    #[allow(clippy::cast_possible_wrap)]
     unsafe fn set_layout(gl: &glow::Context) {
-        gl.enable_vertex_attrib_array(0);
-        gl.vertex_attrib_pointer_f32(
-            0,
-            3,
-            glow::FLOAT,
-            false,
-            std::mem::size_of::<PNVertex>() as i32,
-            0,
-        );
-        gl.enable_vertex_attrib_array(1);
-        gl.vertex_attrib_pointer_f32(
-            1,
-            3,
-            glow::FLOAT,
-            false,
-            std::mem::size_of::<PNVertex>() as i32,
-            std::mem::size_of::<[f32; 3]>() as i32,
-        );
+        unsafe {
+            gl.enable_vertex_attrib_array(0);
+            gl.vertex_attrib_pointer_f32(
+                0,
+                3,
+                glow::FLOAT,
+                false,
+                std::mem::size_of::<Self>() as i32,
+                0,
+            );
+            gl.enable_vertex_attrib_array(1);
+            gl.vertex_attrib_pointer_f32(
+                1,
+                3,
+                glow::FLOAT,
+                false,
+                std::mem::size_of::<Self>() as i32,
+                std::mem::size_of::<[f32; 3]>() as i32,
+            );
+        }
     }
 
     fn validate_layout(
         gl: &glow::Context,
         program: NativeProgram,
     ) -> Result<(), ShaderValidationError> {
-        use ShaderValidationError::*;
+        use ShaderValidationError::{
+            TooFewAttributes, TooManyAttributes, TypeMismatch,
+        };
         unsafe {
             let attr_count = gl.get_active_attributes(program);
             match attr_count.cmp(&2) {
@@ -121,15 +128,17 @@ pub struct PVertex {
 
 unsafe impl Vertex for PVertex {
     unsafe fn set_layout(gl: &glow::Context) {
-        gl.enable_vertex_attrib_array(0);
-        gl.vertex_attrib_pointer_f32(
-            0,
-            3,
-            glow::FLOAT,
-            false,
-            std::mem::size_of::<Self>() as i32,
-            0,
-        );
+        unsafe {
+            gl.enable_vertex_attrib_array(0);
+            gl.vertex_attrib_pointer_f32(
+                0,
+                3,
+                glow::FLOAT,
+                false,
+                std::mem::size_of::<Self>() as i32,
+                0,
+            );
+        }
     }
 
     fn validate_layout(

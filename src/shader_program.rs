@@ -7,6 +7,7 @@ use anyhow::Result;
 
 use crate::{vertex::Vertex, Context};
 
+#[derive(Debug)]
 pub struct ShaderProgram<V: Vertex> {
     // HACK make in private
     pub program: NativeProgram,
@@ -18,17 +19,19 @@ unsafe fn load_shader(
     file: impl AsRef<Path>,
     typ: u32,
 ) -> Result<glow::NativeShader> {
-    let shader = gl.create_shader(typ).map_err(ShaderProgramError)?;
-    let f_name = file.as_ref().to_string_lossy().to_string();
-    gl.shader_source(shader, &fs::read_to_string(file)?);
-    gl.compile_shader(shader);
-    if !gl.get_shader_compile_status(shader) {
-        Err(ShaderProgramError(format!(
-            "Shader `{f_name}` was not compiled:\n{}",
-            gl.get_shader_info_log(shader)
-        )))?;
+    unsafe {
+        let shader = gl.create_shader(typ).map_err(ShaderProgramError)?;
+        let f_name = file.as_ref().to_string_lossy().to_string();
+        gl.shader_source(shader, &fs::read_to_string(file)?);
+        gl.compile_shader(shader);
+        if !gl.get_shader_compile_status(shader) {
+            Err(ShaderProgramError(format!(
+                "Shader `{f_name}` was not compiled:\n{}",
+                gl.get_shader_info_log(shader)
+            )))?;
+        }
+        Ok(shader)
     }
-    Ok(shader)
 }
 
 impl<V: Vertex> ShaderProgram<V> {
@@ -83,6 +86,8 @@ pub trait UseShaderProgram {
 
 impl UseShaderProgram for Context {
     unsafe fn use_shader_program<V: Vertex>(&self, program: &ShaderProgram<V>) {
-        self.gl.use_program(Some(program.program))
+        unsafe {
+            self.gl.use_program(Some(program.program));
+        }
     }
 }

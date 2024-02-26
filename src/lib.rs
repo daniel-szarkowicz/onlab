@@ -8,7 +8,9 @@ use glutin::context::{
     PossiblyCurrentContext,
 };
 use glutin::display::{GetGlDisplay, GlDisplay};
-use glutin::surface::{GlSurface, Surface, SwapInterval};
+use glutin::surface::{
+    GlSurface, Surface, SurfaceAttributesBuilder, SwapInterval,
+};
 use glutin_winit::{DisplayBuilder, GlWindow};
 use raw_window_handle::HasRawWindowHandle;
 use winit::dpi::LogicalSize;
@@ -44,7 +46,8 @@ impl Context {
             .unwrap();
 
         let gl_display = gl_config.display();
-        let raw_window_handle = window.as_ref().map(|w| w.raw_window_handle());
+        let raw_window_handle =
+            window.as_ref().map(HasRawWindowHandle::raw_window_handle);
         let context_attributes = ContextAttributesBuilder::new()
             .with_context_api(ContextApi::OpenGl(Some(
                 glutin::context::Version { major: 4, minor: 3 },
@@ -65,7 +68,8 @@ impl Context {
             )
             .unwrap()
         });
-        let attrs = window.build_surface_attributes(Default::default());
+        let attrs = window
+            .build_surface_attributes(SurfaceAttributesBuilder::default());
         let gl_surface = unsafe {
             gl_display
                 .create_window_surface(&gl_config, &attrs)
@@ -84,7 +88,7 @@ impl Context {
             gl.enable(glow::DEBUG_OUTPUT);
             gl.debug_message_callback(
                 |_source, _typ, _id, _severity, message| {
-                    println!("{}", message);
+                    println!("{message}");
                 },
             );
         }
@@ -122,7 +126,7 @@ impl Context {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum UserEvent {
     Redraw,
 }

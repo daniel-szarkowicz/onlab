@@ -17,6 +17,7 @@ use crate::shader_program::{ShaderProgram, UseShaderProgram};
 use crate::vertex::PVertex;
 use crate::{scene::Scene, vertex::PNVertex, Context};
 
+#[derive(Debug)]
 pub struct MainScene {
     objects: Vec<Object>,
     phong_shader_program: ShaderProgram<PNVertex>,
@@ -75,7 +76,6 @@ impl MainScene {
 
     fn preset_many_spheres(&mut self) {
         self.objects.clear();
-        use Collider::*;
         for x in -5..=5 {
             for y in 5..=15 {
                 for z in -5..=5 {
@@ -87,7 +87,11 @@ impl MainScene {
                         ),
                         rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
                         mesh_scale: Vector3::new(0.5, 0.5, 0.5),
-                        ..Object::new(&self.sphere_mesh, Sphere(0.5), 1.0)
+                        ..Object::new(
+                            &self.sphere_mesh,
+                            Collider::Sphere(0.5),
+                            1.0,
+                        )
                     });
                 }
             }
@@ -96,19 +100,22 @@ impl MainScene {
             immovable: true,
             position: Point3::new(0.0, -1.0, 0.0),
             mesh_scale: Vector3::new(10000.0, 1.0, 10000.0),
-            ..Object::new(&self.box_mesh, Box(10000.0, 1.0, 10000.0), 1.0)
+            ..Object::new(
+                &self.box_mesh,
+                Collider::Box(10000.0, 1.0, 10000.0),
+                1.0,
+            )
         });
     }
 
     fn preset_two_spheres(&mut self) {
         self.objects.clear();
-        use Collider::*;
         for i in 0..2 {
             self.objects.push(Object {
                 position: Point3::new(3.0 * i as f32, 0.0, 0.0),
                 rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
                 mesh_scale: Vector3::new(1.0, 1.0, 1.0),
-                ..Object::new(&self.sphere_mesh, Sphere(1.0), 1.0)
+                ..Object::new(&self.sphere_mesh, Collider::Sphere(1.0), 1.0)
             });
         }
     }
@@ -263,9 +270,9 @@ impl MainScene {
                 let (a, b) = self.objects.split_at_mut(j);
                 let o1 = &mut a[i];
                 let o2 = &mut b[0];
-                use Collider::*;
+                #[allow(clippy::single_match)]
                 match (&o1.collider, &o2.collider) {
-                    (Sphere(r1), Sphere(r2)) => {
+                    (Collider::Sphere(r1), Collider::Sphere(r2)) => {
                         // o2 -> o1
                         let center_distance = o1.position - o2.position;
                         if center_distance.magnitude() <= (r1 + r2) {
@@ -415,7 +422,7 @@ impl Scene for MainScene {
                         o.apply_impulse(
                             ray.start + ray.direction * t,
                             2.0 * ray.direction,
-                        )
+                        );
                     }
                     true
                 }

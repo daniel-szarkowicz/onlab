@@ -60,8 +60,8 @@ pub fn sphere_mesh(
     let mut vertices = Vec::with_capacity((lat * lon) as usize);
     for b in 0..lon {
         for a in 0..lat {
-            let alpha = (a as f32) * PI * 2.0 / (lat as f32);
-            let beta = ((b as f32) * PI / ((lon - 1) as f32)) - PI / 2.0;
+            let alpha = f32::from(a) * PI * 2.0 / f32::from(lat);
+            let beta = f32::from(b) * PI / f32::from(lon - 1) - PI / 2.0;
             let y = beta.sin();
             let x = beta.cos() * alpha.sin();
             let z = beta.cos() * alpha.cos();

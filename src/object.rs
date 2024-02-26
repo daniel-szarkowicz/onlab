@@ -6,6 +6,7 @@ use nalgebra::{
 
 use crate::{collider::Collider, mesh::Mesh, vertex::PNVertex};
 
+#[derive(Debug)]
 pub struct Object {
     pub mesh: Rc<Mesh<PNVertex>>,
     // HACK collider should be private
@@ -26,6 +27,7 @@ pub struct Object {
 }
 
 impl Object {
+    #[must_use]
     pub fn new(
         mesh: &Rc<Mesh<PNVertex>>,
         collider: Collider,
@@ -45,6 +47,7 @@ impl Object {
         }
     }
 
+    #[must_use]
     pub fn model(&self) -> Matrix4<f32> {
         (Translation3::from(self.position) * self.rotation).to_homogeneous()
             * Scale3::from(self.mesh_scale).to_homogeneous()
@@ -72,14 +75,17 @@ impl Object {
         }
     }
 
+    #[must_use]
     pub fn aabb(&self) -> (Point3<f32>, Point3<f32>) {
         self.collider.aabb(&self.position, &self.rotation)
     }
 
+    #[must_use]
     pub fn inverse_inertia(&self) -> Matrix3<f32> {
         self.rotation * self.inverse_body_inertia * self.rotation.inverse()
     }
 
+    #[must_use]
     pub fn local_velocity(&self, position: Point3<f32>) -> Vector3<f32> {
         self.momentum / self.mass
             + (self.inverse_inertia() * self.angular_momentum)

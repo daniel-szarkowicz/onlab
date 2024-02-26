@@ -5,7 +5,8 @@ use glow::{HasContext, NativeVertexArray};
 
 use crate::{vertex::Vertex, Context};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
+#[allow(clippy::cast_possible_wrap)]
 pub enum MeshPrimitive {
     Points = glow::POINTS as isize,
     LineSprip = glow::LINE_STRIP as isize,
@@ -20,8 +21,9 @@ pub enum MeshPrimitive {
     TrianglesAdjacency = glow::TRIANGLES_ADJACENCY as isize,
 }
 
+#[derive(Debug)]
 pub struct Mesh<V: Vertex> {
-    vao: NativeVertexArray,
+    vertex_array: NativeVertexArray,
     count: i32,
     primitive: MeshPrimitive,
     phantom: PhantomData<V>,
@@ -31,10 +33,10 @@ impl<V: Vertex> Mesh<V> {
     pub fn new(
         ctx: &Context,
         vertices: &[V],
-        indicies: &[u16],
+        indices: &[u16],
         primitive: MeshPrimitive,
     ) -> anyhow::Result<Self> {
-        for i in indicies {
+        for i in indices {
             if *i as usize >= vertices.len() {
                 Err(MeshError(format!(
                     "Indicies out of bounds. Index: {i}/{}",
@@ -42,33 +44,33 @@ impl<V: Vertex> Mesh<V> {
                 )))?;
             }
         }
-        let vao = unsafe {
+        let vertex_array = unsafe {
             let gl = &ctx.gl;
-            let vao = gl.create_vertex_array().map_err(MeshError)?;
-            let vbo = gl.create_buffer().map_err(MeshError)?;
-            let ibo = gl.create_buffer().map_err(MeshError)?;
-            gl.bind_vertex_array(Some(vao));
-            gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
+            let vertex_array = gl.create_vertex_array().map_err(MeshError)?;
+            let vertex_buffer = gl.create_buffer().map_err(MeshError)?;
+            let index_buffer = gl.create_buffer().map_err(MeshError)?;
+            gl.bind_vertex_array(Some(vertex_array));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(vertex_buffer));
             gl.buffer_data_u8_slice(
                 glow::ARRAY_BUFFER,
                 bytemuck::cast_slice(vertices),
                 glow::STATIC_DRAW,
             );
             V::set_layout(gl);
-            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ibo));
+            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(index_buffer));
             gl.buffer_data_u8_slice(
                 glow::ELEMENT_ARRAY_BUFFER,
-                bytemuck::cast_slice(indicies),
+                bytemuck::cast_slice(indices),
                 glow::STATIC_DRAW,
             );
             gl.bind_vertex_array(None);
             gl.bind_buffer(glow::ARRAY_BUFFER, None);
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
-            vao
+            vertex_array
         };
         Ok(Self {
-            vao,
-            count: indicies.len() as i32,
+            vertex_array,
+            count: indices.len().try_into()?,
             primitive,
             phantom: PhantomData,
         })
@@ -95,13 +97,15 @@ pub trait DrawMesh {
 
 impl DrawMesh for Context {
     unsafe fn draw_mesh<V: Vertex>(&self, mesh: &Mesh<V>) {
-        self.gl.bind_vertex_array(Some(mesh.vao));
-        self.gl.draw_elements(
-            mesh.primitive as u32,
-            mesh.count,
-            glow::UNSIGNED_SHORT,
-            0,
-        );
-        self.gl.bind_vertex_array(None);
+        unsafe {
+            self.gl.bind_vertex_array(Some(mesh.vertex_array));
+            self.gl.draw_elements(
+                mesh.primitive as u32,
+                mesh.count,
+                glow::UNSIGNED_SHORT,
+                0,
+            );
+            self.gl.bind_vertex_array(None);
+        }
     }
 }

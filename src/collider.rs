@@ -4,34 +4,35 @@ use nalgebra::{
 
 use crate::ray::Ray;
 
+#[derive(Clone, Copy, Debug)]
 pub enum Collider {
     Sphere(f32),
     Box(f32, f32, f32),
 }
 
 impl Collider {
+    #[must_use]
     pub fn check_ray_hit(
         &self,
         position: Point3<f32>,
         rotation: Rotation3<f32>,
         ray: &Ray,
     ) -> Option<f32> {
-        use Collider::*;
         match self {
-            Sphere(r) => {
+            Self::Sphere(radius) => {
                 let a = ray.direction.dot(&ray.direction);
                 let b = 2.0 * ray.direction.dot(&(ray.start - position));
                 let c = ray.start.coords.dot(&ray.start.coords)
                     + position.coords.dot(&position.coords)
                     - 2.0 * ray.start.coords.dot(&position.coords)
-                    - r * r;
-                let d = b * b - 4.0 * a * c;
-                if d < 0.0 {
+                    - radius * radius;
+                let discriminant = b * b - 4.0 * a * c;
+                if discriminant < 0.0 {
                     return None;
                 }
                 // t1 < t2;
-                let t1 = (-b - d.sqrt()) / (2.0 * a);
-                let t2 = (-b + d.sqrt()) / (2.0 * a);
+                let t1 = (-b - discriminant.sqrt()) / (2.0 * a);
+                let t2 = (-b + discriminant.sqrt()) / (2.0 * a);
                 if t1 >= 0.0 {
                     Some(t1)
                 } else if t2 >= 0.0 {
@@ -40,7 +41,7 @@ impl Collider {
                     None
                 }
             }
-            Box(w, h, d) => check_box_hit(
+            Self::Box(w, h, d) => check_box_hit(
                 (Translation3::from(position) * rotation).to_homogeneous()
                     * Scale3::new(*w, *h, *d).to_homogeneous(),
                 ray,
@@ -48,12 +49,13 @@ impl Collider {
         }
     }
 
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn inverse_inertia(&self, mass: f32) -> Matrix3<f32> {
-        use Collider::*;
         match &self {
-            Sphere(r) => Matrix3::identity() * 2.0 / 3.0 * mass * (r * r),
+            Self::Sphere(r) => Matrix3::identity() * 2.0 / 3.0 * mass * (r * r),
             #[rustfmt::skip]
-            Box(w, h, d) => Matrix3::new(
+            Self::Box(w, h, d) => Matrix3::new(
                 mass / 12.0 * (h * h + d * d), 0.0, 0.0,
                 0.0, mass / 12.0 * (d * d + w * w), 0.0,
                 0.0, 0.0, mass / 12.0 * (w * w + h * h)
@@ -63,18 +65,18 @@ impl Collider {
         .expect("Inertia tensor should be invertible")
     }
 
+    #[must_use]
     pub fn aabb(
         &self,
         position: &Point3<f32>,
         rotation: &Rotation3<f32>,
     ) -> (Point3<f32>, Point3<f32>) {
-        use Collider::*;
         match self {
-            Sphere(r) => (
+            Self::Sphere(r) => (
                 position + Vector3::new(-r, -r, -r),
                 position + Vector3::new(*r, *r, *r),
             ),
-            Box(w, h, d) => {
+            Self::Box(w, h, d) => {
                 let mut min = *position;
                 let mut max = *position;
                 for x in [-0.5, 0.5] {

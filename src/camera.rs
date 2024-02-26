@@ -4,6 +4,8 @@ use winit::keyboard::{Key, NamedKey};
 
 use crate::ray::Ray;
 
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug)]
 pub struct FirstPersonCamera {
     position: Point3<f32>,
     forwards: bool,
@@ -26,7 +28,8 @@ impl FirstPersonCamera {
     const FORWARD: Vector3<f32> = Vector3::new(0.0, 0.0, 1.0);
     const LEFT: Vector3<f32> = Vector3::new(1.0, 0.0, 0.0);
 
-    pub fn position(&self) -> Point3<f32> {
+    #[must_use]
+    pub const fn position(&self) -> Point3<f32> {
         self.position
     }
 
@@ -38,6 +41,7 @@ impl FirstPersonCamera {
         Rotation3::new(Self::LEFT * self.pitch.to_radians())
     }
 
+    #[must_use]
     pub fn look_direction(&self) -> Vector3<f32> {
         self.yaw_rotation() * self.pitch_rotation() * Self::FORWARD
     }
@@ -47,9 +51,10 @@ impl FirstPersonCamera {
     }
 
     pub fn move_facing(&mut self, direction: Vector3<f32>) {
-        self.position += self.yaw_rotation() * direction
+        self.position += self.yaw_rotation() * direction;
     }
 
+    #[must_use]
     pub fn view_proj(&self) -> Matrix4<f32> {
         Perspective3::new(self.aspect, 60.0f32.to_radians(), 0.1, 1000.0)
             .to_homogeneous()
@@ -75,7 +80,8 @@ impl FirstPersonCamera {
         }
     }
 
-    pub fn focus(&self) -> bool {
+    #[must_use]
+    pub const fn focus(&self) -> bool {
         self.focus
     }
 
@@ -148,6 +154,7 @@ impl FirstPersonCamera {
         }
     }
 
+    #[must_use]
     pub fn get_ray(&self) -> Ray {
         Ray {
             start: self.position,
