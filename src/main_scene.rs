@@ -15,7 +15,7 @@ use crate::meshes;
 use crate::object::Object;
 use crate::shader_program::{ShaderProgram, UseShaderProgram};
 use crate::vertex::PVertex;
-use crate::{scene::Scene, vertex::PNVertex, Context};
+use crate::{context::Context, scene::Scene, vertex::PNVertex};
 
 #[derive(Debug)]
 pub struct MainScene {

@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use anyhow::Result;
 use glutin::surface::GlSurface;
-use onlab::{Context, UserEvent};
+use onlab::{context::Context, context::UserEvent};
 use winit::event::Event;
 
 use onlab::main_scene::MainScene;

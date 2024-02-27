@@ -2,9 +2,9 @@ use std::f32::consts::PI;
 
 use anyhow::Result;
 
+use crate::context::Context;
 use crate::mesh::{Mesh, MeshPrimitive};
 use crate::vertex::{PNVertex, PVertex};
-use crate::Context;
 
 #[rustfmt::skip]
 pub fn box_mesh(ctx: &Context) -> Result<Mesh<PNVertex>> {

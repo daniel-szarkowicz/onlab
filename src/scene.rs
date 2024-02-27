@@ -1,4 +1,4 @@
-use crate::Context;
+use crate::context::Context;
 
 pub trait Scene {
     fn draw(&mut self, ctx: &mut Context);

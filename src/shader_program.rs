@@ -5,7 +5,7 @@ use glow::{HasContext, NativeProgram};
 
 use anyhow::Result;
 
-use crate::{vertex::Vertex, Context};
+use crate::{context::Context, vertex::Vertex};
 
 #[derive(Debug)]
 pub struct ShaderProgram<V: Vertex> {

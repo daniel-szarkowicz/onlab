@@ -3,7 +3,7 @@ use std::{error::Error, marker::PhantomData};
 
 use glow::{HasContext, NativeVertexArray};
 
-use crate::{vertex::Vertex, Context};
+use crate::{context::Context, vertex::Vertex};
 
 #[derive(Clone, Copy, Debug)]
 #[allow(clippy::cast_possible_wrap)]
