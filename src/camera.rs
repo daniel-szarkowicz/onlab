@@ -146,8 +146,9 @@ impl FirstPersonCamera {
                 ..
             } if self.focus => {
                 self.yaw -= delta.0 as f32 * 0.15;
-                self.pitch =
-                    (self.pitch + delta.1 as f32 * 0.15).clamp(-89.9, 89.9);
+                self.pitch = (delta.1 as f32)
+                    .mul_add(0.15, self.pitch)
+                    .clamp(-89.9, 89.9);
                 false
             }
             _ => false,

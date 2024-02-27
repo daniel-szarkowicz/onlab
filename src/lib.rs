@@ -87,8 +87,12 @@ impl Context {
         unsafe {
             gl.enable(glow::DEBUG_OUTPUT);
             gl.debug_message_callback(
-                |_source, _typ, _id, _severity, message| {
-                    println!("{message}");
+                |_source, _typ, _id, severity, message| {
+                    if [glow::DEBUG_SEVERITY_MEDIUM, glow::DEBUG_SEVERITY_HIGH]
+                        .contains(&severity)
+                    {
+                        println!("{message}");
+                    }
                 },
             );
         }
@@ -131,6 +135,7 @@ pub enum UserEvent {
     Redraw,
 }
 
+#[allow(missing_debug_implementations)]
 pub struct Context {
     pub gl: Arc<glow::Context>,
     pub gl_surface: Surface<glutin::surface::WindowSurface>,

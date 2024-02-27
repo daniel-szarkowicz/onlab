@@ -385,12 +385,13 @@ impl Scene for MainScene {
     }
 
     fn update(&mut self, delta: f32) {
-        self.camera.update(delta);
         const TICK_RATE_TARGET: f32 = 100.0;
         const MAX_STEP_COUNT: u32 = 10;
+        self.camera.update(delta);
         if !self.paused {
-            let step_count =
-                MAX_STEP_COUNT.min((delta * TICK_RATE_TARGET).ceil() as u32);
+            #[allow(clippy::cast_sign_loss)]
+            let step_count = MAX_STEP_COUNT
+                .min((delta * TICK_RATE_TARGET).abs().ceil() as u32);
             let step_size = delta / step_count as f32;
             for _ in 0..step_count {
                 self.simulate(step_size);

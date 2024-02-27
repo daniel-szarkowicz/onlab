@@ -127,6 +127,7 @@ pub struct PVertex {
 }
 
 unsafe impl Vertex for PVertex {
+    #[allow(clippy::cast_possible_wrap)]
     unsafe fn set_layout(gl: &glow::Context) {
         unsafe {
             gl.enable_vertex_attrib_array(0);
@@ -145,7 +146,9 @@ unsafe impl Vertex for PVertex {
         gl: &glow::Context,
         program: NativeProgram,
     ) -> Result<(), ShaderValidationError> {
-        use ShaderValidationError::*;
+        use ShaderValidationError::{
+            TooFewAttributes, TooManyAttributes, TypeMismatch,
+        };
         unsafe {
             let attr_count = gl.get_active_attributes(program);
             match attr_count.cmp(&1) {

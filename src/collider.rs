@@ -22,11 +22,13 @@ impl Collider {
             Self::Sphere(radius) => {
                 let a = ray.direction.dot(&ray.direction);
                 let b = 2.0 * ray.direction.dot(&(ray.start - position));
-                let c = ray.start.coords.dot(&ray.start.coords)
-                    + position.coords.dot(&position.coords)
-                    - 2.0 * ray.start.coords.dot(&position.coords)
-                    - radius * radius;
-                let discriminant = b * b - 4.0 * a * c;
+                let c = 2.0f32.mul_add(
+                    -ray.start.coords.dot(&position.coords),
+                    ray.start.coords.dot(&ray.start.coords)
+                        + position.coords.dot(&position.coords)
+                        - radius * radius,
+                );
+                let discriminant = 4.0f32.mul_add(-a * c, b * b);
                 if discriminant < 0.0 {
                     return None;
                 }
