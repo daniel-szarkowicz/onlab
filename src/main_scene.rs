@@ -5,6 +5,7 @@ use egui::{DragValue, Window};
 use glow::HasContext;
 use glutin::surface::GlSurface;
 use nalgebra::{Point3, Rotation3, Scale3, Translation3, Vector3};
+use rand::Rng;
 use winit::event::{ElementState, Event, WindowEvent};
 use winit::window::CursorGrabMode;
 
@@ -14,6 +15,7 @@ use crate::mesh::{DrawMesh, Mesh};
 use crate::meshes;
 use crate::object::Object;
 use crate::shader_program::{ShaderProgram, UseShaderProgram};
+use crate::simulation::Simulation;
 use crate::vertex::PVertex;
 use crate::{context::Context, scene::Scene, vertex::PNVertex};
 
@@ -32,8 +34,8 @@ pub struct MainScene {
     sphere_mesh: Rc<Mesh<PNVertex>>,
     surface_width: f32,
     surface_height: f32,
-    epsilon: f32,
     paused: bool,
+    simulation: Simulation,
 }
 
 impl MainScene {
@@ -69,28 +71,36 @@ impl MainScene {
             sphere_mesh,
             surface_width: 1.0,
             surface_height: 1.0,
-            epsilon: 1.0,
             paused: false,
+            simulation: Simulation {
+                epsilon: 1.0,
+                mu: 1.0,
+            },
         })
     }
 
     fn preset_many_spheres(&mut self) {
         self.objects.clear();
-        for x in -5..=5 {
-            for y in 5..=15 {
-                for z in -5..=5 {
+        let mut random = rand::thread_rng();
+        for x in -2..=2 {
+            for y in 2..=6 {
+                for z in -2..=2 {
+                    let r = random.gen_range(0.25..=1.5);
                     self.objects.push(Object {
                         position: Point3::new(
-                            2.0 * x as f32,
-                            2.0 * y as f32,
-                            2.0 * z as f32,
+                            (x as f32)
+                                .mul_add(4.0, random.gen_range(-0.5..=0.5)),
+                            (y as f32)
+                                .mul_add(4.0, random.gen_range(-0.5..=0.5)),
+                            (z as f32)
+                                .mul_add(4.0, random.gen_range(-0.5..=0.5)),
                         ),
                         rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
-                        mesh_scale: Vector3::new(0.5, 0.5, 0.5),
+                        mesh_scale: Vector3::new(r, r, r),
                         ..Object::new(
                             &self.sphere_mesh,
-                            Collider::Sphere(0.5),
-                            1.0,
+                            Collider::Sphere(r),
+                            r * r * r * 8.0,
                         )
                     });
                 }
@@ -263,56 +273,6 @@ impl MainScene {
             ctx.draw_mesh(&self.rectangle_mesh);
         }
     }
-
-    fn simulate(&mut self, delta: f32) {
-        for i in 0..self.objects.len() {
-            for j in (i + 1)..self.objects.len() {
-                let (a, b) = self.objects.split_at_mut(j);
-                let o1 = &mut a[i];
-                let o2 = &mut b[0];
-                #[allow(clippy::single_match)]
-                match (&o1.collider, &o2.collider) {
-                    (Collider::Sphere(r1), Collider::Sphere(r2)) => {
-                        // o2 -> o1
-                        let center_distance = o1.position - o2.position;
-                        if center_distance.magnitude() <= (r1 + r2) {
-                            let norm = center_distance.normalize();
-                            let p1 = o1.position - norm * *r1;
-                            let p2 = o2.position + norm * *r2;
-                            let v1 = o1.local_velocity(p1);
-                            let v2 = o2.local_velocity(p2);
-                            // o2 -> o1
-                            let dv = norm.dot(&(v1 - v2));
-                            if dv < 0.0 {
-                                let impulse_strength = -(self.epsilon + 1.0)
-                                    * dv
-                                    / (1.0 / o1.mass
-                                        + 1.0 / o2.mass
-                                        + norm.dot(
-                                            &(o1.inverse_inertia()
-                                                * (p1 - o1.position)
-                                                    .cross(&norm))
-                                            .cross(&(p1 - o1.position)),
-                                        )
-                                        + norm.dot(
-                                            &(o2.inverse_inertia()
-                                                * (p2 - o2.position)
-                                                    .cross(&norm))
-                                            .cross(&(p2 - o2.position)),
-                                        ));
-                                o1.apply_impulse(p1, impulse_strength * norm);
-                                o2.apply_impulse(p2, -impulse_strength * norm);
-                            }
-                        }
-                    }
-                    _ => (),
-                }
-            }
-        }
-        for obj in &mut self.objects {
-            obj.update(delta);
-        }
-    }
 }
 
 impl Scene for MainScene {
@@ -357,10 +317,16 @@ impl Scene for MainScene {
                     ui.checkbox(&mut self.draw_phong, "Draw objects");
                     ui.checkbox(&mut self.draw_debug, "Draw bounds");
                     ui.add(
-                        DragValue::new(&mut self.epsilon)
+                        DragValue::new(&mut self.simulation.epsilon)
                             .prefix("Collision energy multiplier: ")
                             .clamp_range(-1.0..=2.0)
                             .speed(0.005),
+                    );
+                    ui.add(
+                        DragValue::new(&mut self.simulation.mu)
+                            .prefix("Coefficient of friction: ")
+                            .clamp_range(0.0..=100_000.0)
+                            .speed(0.01),
                     );
                     let total_momentum = self
                         .objects
@@ -371,12 +337,32 @@ impl Scene for MainScene {
                         "Total momentum: {}",
                         total_momentum.magnitude()
                     ));
-                    let total_energy = self
+                    let total_directional_energy = self
                         .objects
                         .iter()
                         .map(|o| o.momentum.magnitude_squared() / o.mass / 2.0)
                         .sum::<f32>();
-                    ui.label(format!("Total energy: {total_energy}"));
+                    let total_rotational_energy = self
+                        .objects
+                        .iter()
+                        .map(|o| {
+                            (o.angular_momentum.transpose()
+                                * o.inverse_inertia()
+                                * o.angular_momentum)
+                                .magnitude()
+                                / 2.0
+                        })
+                        .sum::<f32>();
+                    ui.label(format!(
+                        "Total directional energy: {total_directional_energy}"
+                    ));
+                    ui.label(format!(
+                        "Total rotational energy: {total_rotational_energy}"
+                    ));
+                    ui.label(format!(
+                        "Total energy: {}",
+                        total_directional_energy + total_rotational_energy
+                    ))
                 });
             });
             ctx.egui.paint(&ctx.window);
@@ -394,7 +380,7 @@ impl Scene for MainScene {
                 .min((delta * TICK_RATE_TARGET).abs().ceil() as u32);
             let step_size = delta / step_count as f32;
             for _ in 0..step_count {
-                self.simulate(step_size);
+                self.simulation.simulate(&mut self.objects, step_size);
             }
         }
     }

@@ -8,4 +8,5 @@ pub mod object;
 pub mod ray;
 pub mod scene;
 pub mod shader_program;
+pub mod simulation;
 pub mod vertex;

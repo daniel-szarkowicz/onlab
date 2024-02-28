@@ -91,4 +91,20 @@ impl Object {
             + (self.inverse_inertia() * self.angular_momentum)
                 .cross(&(position - self.position))
     }
+
+    /// used for resolving collisions
+    #[must_use]
+    pub fn impulse_effectiveness(
+        &self,
+        attack_point: Point3<f32>,
+        direction: Vector3<f32>,
+    ) -> f32 {
+        let attack_point_vector = attack_point - self.position;
+        direction.dot(
+            &(direction / self.mass
+                + (self.inverse_inertia()
+                    * attack_point_vector.cross(&direction))
+                .cross(&attack_point_vector)),
+        )
+    }
 }
