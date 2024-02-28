@@ -51,7 +51,9 @@ impl Simulation {
                             - contact_normal
                                 * contact_normal.dot(&relative_velocity);
                         let nonnormal_relative_velocity_direction =
-                            -nonnormal_relative_velocity.normalize();
+                            -nonnormal_relative_velocity
+                                .try_normalize(f32::EPSILON)
+                                .unwrap_or_else(Vector3::x);
 
                         let friction_ka = o1.impulse_effectiveness(
                             contact_point_1,

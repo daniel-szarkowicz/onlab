@@ -130,6 +130,35 @@ impl MainScene {
         }
     }
 
+    fn preset_wrecking_ball(&mut self) {
+        self.objects.clear();
+        for x in -7..=7 {
+            for y in -7..=7 {
+                for z in 0..3 {
+                    self.objects.push(Object {
+                        position: Point3::new(
+                            x as f32,
+                            y as f32,
+                            z as f32 * 1.5,
+                        ),
+                        mesh_scale: Vector3::new(0.5, 0.5, 0.5),
+                        ..Object::new(
+                            &self.sphere_mesh,
+                            Collider::Sphere(0.5),
+                            1.0,
+                        )
+                    });
+                }
+            }
+        }
+        self.objects.push(Object {
+            position: Point3::new(0.0, 0.0, -100.0),
+            mesh_scale: Vector3::new(2.0, 2.0, 2.0),
+            momentum: Vector3::new(0.0, 0.0, 2000.0),
+            ..Object::new(&self.sphere_mesh, Collider::Sphere(2.0), 20.0)
+        });
+    }
+
     fn draw_phong(&self, ctx: &mut Context) {
         unsafe {
             ctx.use_shader_program(&self.phong_shader_program);
@@ -313,6 +342,9 @@ impl Scene for MainScene {
                     }
                     if ui.button("Two spheres").clicked() {
                         self.preset_two_spheres();
+                    }
+                    if ui.button("Wrecking ball").clicked() {
+                        self.preset_wrecking_ball();
                     }
                     ui.checkbox(&mut self.draw_phong, "Draw objects");
                     ui.checkbox(&mut self.draw_debug, "Draw bounds");
