@@ -6,29 +6,29 @@ use crate::ray::Ray;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Collider {
-    Sphere(f32),
-    Box(f32, f32, f32),
+    Sphere(f64),
+    Box(f64, f64, f64),
 }
 
 impl Collider {
     #[must_use]
     pub fn check_ray_hit(
         &self,
-        position: Point3<f32>,
-        rotation: Rotation3<f32>,
+        position: Point3<f64>,
+        rotation: Rotation3<f64>,
         ray: &Ray,
-    ) -> Option<f32> {
+    ) -> Option<f64> {
         match self {
             Self::Sphere(radius) => {
                 let a = ray.direction.dot(&ray.direction);
                 let b = 2.0 * ray.direction.dot(&(ray.start - position));
-                let c = 2.0f32.mul_add(
+                let c = 2.0f64.mul_add(
                     -ray.start.coords.dot(&position.coords),
                     ray.start.coords.dot(&ray.start.coords)
                         + position.coords.dot(&position.coords)
                         - radius * radius,
                 );
-                let discriminant = 4.0f32.mul_add(-a * c, b * b);
+                let discriminant = 4.0f64.mul_add(-a * c, b * b);
                 if discriminant < 0.0 {
                     return None;
                 }
@@ -53,7 +53,7 @@ impl Collider {
 
     #[must_use]
     #[allow(clippy::missing_panics_doc)]
-    pub fn inverse_inertia(&self, mass: f32) -> Matrix3<f32> {
+    pub fn inverse_inertia(&self, mass: f64) -> Matrix3<f64> {
         match &self {
             Self::Sphere(r) => Matrix3::identity() * 2.0 / 3.0 * mass * (r * r),
             #[rustfmt::skip]
@@ -70,9 +70,9 @@ impl Collider {
     #[must_use]
     pub fn aabb(
         &self,
-        position: &Point3<f32>,
-        rotation: &Rotation3<f32>,
-    ) -> (Point3<f32>, Point3<f32>) {
+        position: &Point3<f64>,
+        rotation: &Rotation3<f64>,
+    ) -> (Point3<f64>, Point3<f64>) {
         match self {
             Self::Sphere(r) => (
                 position + Vector3::new(-r, -r, -r),
@@ -97,7 +97,7 @@ impl Collider {
     }
 }
 
-fn check_box_hit(transform: Matrix4<f32>, ray: &Ray) -> Option<f32> {
+fn check_box_hit(transform: Matrix4<f64>, ray: &Ray) -> Option<f64> {
     let mut best = None;
     for face in BOX_FACES {
         let face = face
@@ -121,7 +121,7 @@ fn check_box_hit(transform: Matrix4<f32>, ray: &Ray) -> Option<f32> {
 }
 
 #[rustfmt::skip]
-const BOX_FACES: [[Point3<f32>; 4]; 6] = [
+const BOX_FACES: [[Point3<f64>; 4]; 6] = [
     [
         Point3::new( 0.5,  0.5,  0.5),
         Point3::new(-0.5,  0.5,  0.5),

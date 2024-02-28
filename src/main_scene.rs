@@ -88,15 +88,15 @@ impl MainScene {
                     let r = random.gen_range(0.25..=1.5);
                     self.objects.push(Object {
                         position: Point3::new(
-                            (x as f32)
+                            f64::from(x)
                                 .mul_add(4.0, random.gen_range(-0.5..=0.5)),
-                            (y as f32)
+                            f64::from(y)
                                 .mul_add(4.0, random.gen_range(-0.5..=0.5)),
-                            (z as f32)
+                            f64::from(z)
                                 .mul_add(4.0, random.gen_range(-0.5..=0.5)),
                         ),
                         rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
-                        mesh_scale: Vector3::new(r, r, r),
+                        mesh_scale: Vector3::new(r as f32, r as f32, r as f32),
                         ..Object::new(
                             &self.sphere_mesh,
                             Collider::Sphere(r),
@@ -122,7 +122,7 @@ impl MainScene {
         self.objects.clear();
         for i in 0..2 {
             self.objects.push(Object {
-                position: Point3::new(3.0 * i as f32, 0.0, 0.0),
+                position: Point3::new(3.0 * f64::from(i), 0.0, 0.0),
                 rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
                 mesh_scale: Vector3::new(1.0, 1.0, 1.0),
                 ..Object::new(&self.sphere_mesh, Collider::Sphere(1.0), 1.0)
@@ -137,9 +137,9 @@ impl MainScene {
                 for z in 0..3 {
                     self.objects.push(Object {
                         position: Point3::new(
-                            x as f32,
-                            y as f32,
-                            z as f32 * 1.5,
+                            f64::from(x),
+                            f64::from(y),
+                            f64::from(z) * 1.5,
                         ),
                         mesh_scale: Vector3::new(0.5, 0.5, 0.5),
                         ..Object::new(
@@ -156,6 +156,29 @@ impl MainScene {
             mesh_scale: Vector3::new(2.0, 2.0, 2.0),
             momentum: Vector3::new(0.0, 0.0, 2000.0),
             ..Object::new(&self.sphere_mesh, Collider::Sphere(2.0), 20.0)
+        });
+    }
+
+    fn preset_spinning_ball(&mut self) {
+        self.objects.clear();
+        for x in -5..=5 {
+            for y in -5..=5 {
+                self.objects.push(Object {
+                    position: Point3::new(
+                        1.5 * f64::from(x),
+                        1.5 * f64::from(y),
+                        0.0,
+                    ),
+                    mesh_scale: Vector3::new(0.5, 0.5, 0.5),
+                    ..Object::new(&self.sphere_mesh, Collider::Sphere(0.5), 1.0)
+                });
+            }
+        }
+        self.objects.push(Object {
+            position: Point3::new(0.0, 0.0, 50.0),
+            angular_momentum: Vector3::new(0.0, 5_000_000_000_000.0, 0.0),
+            mesh_scale: Vector3::new(20.0, 20.0, 20.0),
+            ..Object::new(&self.sphere_mesh, Collider::Sphere(20.0), 100_000.0)
         });
     }
 
@@ -249,8 +272,9 @@ impl MainScene {
                 let (min, max) = object.aabb();
                 let size = max - min;
                 let pos = min + size / 2.0;
-                let model_m = Translation3::from(pos).to_homogeneous()
-                    * Scale3::from(size).to_homogeneous();
+                let model_m = Translation3::from(pos.cast::<f32>())
+                    .to_homogeneous()
+                    * Scale3::from(size.cast::<f32>()).to_homogeneous();
 
                 ctx.gl.uniform_matrix_4_f32_slice(
                     Some(&model),
@@ -346,6 +370,9 @@ impl Scene for MainScene {
                     if ui.button("Wrecking ball").clicked() {
                         self.preset_wrecking_ball();
                     }
+                    if ui.button("Spinning ball").clicked() {
+                        self.preset_spinning_ball();
+                    }
                     ui.checkbox(&mut self.draw_phong, "Draw objects");
                     ui.checkbox(&mut self.draw_debug, "Draw bounds");
                     ui.add(
@@ -364,7 +391,7 @@ impl Scene for MainScene {
                         .objects
                         .iter()
                         .map(|o| o.momentum)
-                        .sum::<Vector3<f32>>();
+                        .sum::<Vector3<f64>>();
                     ui.label(format!(
                         "Total momentum: {}",
                         total_momentum.magnitude()
@@ -373,7 +400,7 @@ impl Scene for MainScene {
                         .objects
                         .iter()
                         .map(|o| o.momentum.magnitude_squared() / o.mass / 2.0)
-                        .sum::<f32>();
+                        .sum::<f64>();
                     let total_rotational_energy = self
                         .objects
                         .iter()
@@ -384,7 +411,7 @@ impl Scene for MainScene {
                                 .magnitude()
                                 / 2.0
                         })
-                        .sum::<f32>();
+                        .sum::<f64>();
                     ui.label(format!(
                         "Total directional energy: {total_directional_energy}"
                     ));
@@ -402,15 +429,15 @@ impl Scene for MainScene {
         }
     }
 
-    fn update(&mut self, delta: f32) {
-        const TICK_RATE_TARGET: f32 = 100.0;
+    fn update(&mut self, delta: f64) {
+        const TICK_RATE_TARGET: f64 = 100.0;
         const MAX_STEP_COUNT: u32 = 10;
-        self.camera.update(delta);
+        self.camera.update(delta as f32);
         if !self.paused {
             #[allow(clippy::cast_sign_loss)]
             let step_count = MAX_STEP_COUNT
                 .min((delta * TICK_RATE_TARGET).abs().ceil() as u32);
-            let step_size = delta / step_count as f32;
+            let step_size = delta / f64::from(step_count);
             for _ in 0..step_count {
                 self.simulation.simulate(&mut self.objects, step_size);
             }

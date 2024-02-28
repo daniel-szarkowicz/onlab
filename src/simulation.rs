@@ -8,6 +8,8 @@
 //   7. resolve collisions one-by-one
 //   8.
 
+use std::f64;
+
 use nalgebra::{Point3, Vector3};
 
 use crate::{collider::Collider, object::Object};
@@ -15,12 +17,12 @@ use crate::{collider::Collider, object::Object};
 // simulation should cache aabb ordering for a considerable speedup
 #[derive(Debug)]
 pub struct Simulation {
-    pub epsilon: f32,
-    pub mu: f32,
+    pub epsilon: f64,
+    pub mu: f64,
 }
 
 impl Simulation {
-    pub fn simulate(&mut self, objects: &mut [Object], delta: f32) {
+    pub fn simulate(&mut self, objects: &mut [Object], delta: f64) {
         for i in 0..objects.len() {
             for j in (i + 1)..objects.len() {
                 let (a, b) = objects.split_at_mut(j);
@@ -52,7 +54,7 @@ impl Simulation {
                                 * contact_normal.dot(&relative_velocity);
                         let nonnormal_relative_velocity_direction =
                             -nonnormal_relative_velocity
-                                .try_normalize(f32::EPSILON)
+                                .try_normalize(f64::EPSILON)
                                 .unwrap_or_else(Vector3::x);
 
                         let friction_ka = o1.impulse_effectiveness(
@@ -103,9 +105,9 @@ impl Simulation {
                         contact_velocity_1 - contact_velocity_2;
                     let normal_velocity =
                         contact_normal.dot(&relative_velocity);
-                    if normal_velocity > f32::EPSILON {
+                    if normal_velocity > f64::EPSILON {
                         Contact::None
-                    } else if normal_velocity < -f32::EPSILON {
+                    } else if normal_velocity < -f64::EPSILON {
                         Contact::Colliding {
                             contact_point_1,
                             contact_point_2,
@@ -129,9 +131,9 @@ pub enum Contact {
     None,
     Resting {/* TODO: fields */},
     Colliding {
-        contact_point_1: Point3<f32>,
-        contact_point_2: Point3<f32>,
-        relative_velocity: Vector3<f32>,
-        contact_normal: Vector3<f32>,
+        contact_point_1: Point3<f64>,
+        contact_point_2: Point3<f64>,
+        relative_velocity: Vector3<f64>,
+        contact_normal: Vector3<f64>,
     },
 }

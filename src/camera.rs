@@ -158,8 +158,8 @@ impl FirstPersonCamera {
     #[must_use]
     pub fn get_ray(&self) -> Ray {
         Ray {
-            start: self.position,
-            direction: self.look_direction(),
+            start: self.position.cast::<f64>(),
+            direction: self.look_direction().cast::<f64>(),
         }
     }
 }
