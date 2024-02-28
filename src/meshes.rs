@@ -69,6 +69,12 @@ pub fn sphere_mesh(
                 position: [x, y, z],
                 normal: [x, y, z],
             });
+            if half_triangles {
+                vertices.push(PNVertex {
+                    position: [x, y, z],
+                    normal: [-x, -y, -z],
+                });
+            }
         }
     }
     let mut indices = Vec::with_capacity(
@@ -80,9 +86,17 @@ pub fn sphere_mesh(
             let i1 = (a + 1) % lat + b * lat;
             let i2 = i0 + lat;
             let i3 = i1 + lat;
-            indices.extend([i0, i1, i2]);
-            if !half_triangles {
-                indices.extend([i2, i1, i3]);
+            if half_triangles {
+                indices.extend([
+                    i0 * 2,
+                    i1 * 2,
+                    i2 * 2,
+                    i0 * 2 + 1,
+                    i2 * 2 + 1,
+                    i1 * 2 + 1,
+                ]);
+            } else {
+                indices.extend([i0, i1, i2, i2, i1, i3]);
             }
         }
     }
