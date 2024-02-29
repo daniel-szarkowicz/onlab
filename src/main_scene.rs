@@ -176,7 +176,7 @@ impl MainScene {
         }
         self.objects.push(Object {
             position: Point3::new(0.0, 0.0, 50.0),
-            angular_momentum: Vector3::new(0.0, 5_000_000_000_000.0, 0.0),
+            angular_momentum: Vector3::new(0.0, 5e12, 0.0),
             mesh_scale: Vector3::new(20.0, 20.0, 20.0),
             ..Object::new(&self.sphere_mesh, Collider::Sphere(20.0), 100_000.0)
         });
@@ -384,8 +384,8 @@ impl Scene for MainScene {
                     ui.add(
                         DragValue::new(&mut self.simulation.mu)
                             .prefix("Coefficient of friction: ")
-                            .clamp_range(0.0..=100_000.0)
-                            .speed(0.01),
+                            .clamp_range(-1.0..=2.0)
+                            .speed(0.005),
                     );
                     let total_momentum = self
                         .objects

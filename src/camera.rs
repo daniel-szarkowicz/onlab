@@ -63,6 +63,9 @@ impl FirstPersonCamera {
 
     #[rustfmt::skip]
     pub fn update(&mut self, delta: f32) {
+        if !self.focus {
+            return;
+        }
         let mut dir = Vector3::zeros();
         if self.forwards  { dir += Self::FORWARD; }
         if self.backwards { dir -= Self::FORWARD; }
@@ -100,21 +103,21 @@ impl FirstPersonCamera {
                     ..
                 } => match logical_key {
                     Key::Character(ch) => match ch.as_str() {
-                        "w" | "W" if self.focus => {
+                        "w" | "W" => {
                             self.forwards = state.is_pressed();
-                            true
+                            self.focus
                         }
-                        "s" | "S" if self.focus => {
+                        "s" | "S" => {
                             self.backwards = state.is_pressed();
-                            true
+                            self.focus
                         }
-                        "a" | "A" if self.focus => {
+                        "a" | "A" => {
                             self.left = state.is_pressed();
-                            true
+                            self.focus
                         }
-                        "d" | "D" if self.focus => {
+                        "d" | "D" => {
                             self.right = state.is_pressed();
-                            true
+                            self.focus
                         }
                         _ => false,
                     },
