@@ -68,13 +68,12 @@ impl Object {
     }
 
     pub fn update(&mut self, delta: f64) {
-        if !self.immovable {
-            self.position += self.momentum * delta / self.mass;
-            self.rotation = Rotation3::new(
-                self.inverse_inertia() * self.angular_momentum * delta
-                    / self.mass,
-            ) * self.rotation;
-        }
+        // if !self.immovable {
+        self.position += self.momentum * delta / self.mass;
+        self.rotation = Rotation3::new(
+            self.inverse_inertia() * self.angular_momentum * delta / self.mass,
+        ) * self.rotation;
+        // }
     }
 
     #[must_use]
@@ -101,6 +100,9 @@ impl Object {
         attack_point: Point3<f64>,
         direction: Vector3<f64>,
     ) -> f64 {
+        if self.immovable {
+            return 0.0;
+        }
         let attack_point_vector = attack_point - self.position;
         direction.dot(
             &(direction / self.mass

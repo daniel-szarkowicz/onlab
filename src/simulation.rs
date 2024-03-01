@@ -10,7 +10,7 @@
 
 use std::f64;
 
-use nalgebra::{Point3, Vector3};
+use nalgebra::{Point3, Translation3, Vector3};
 
 use crate::{collider::Collider, object::Object};
 
@@ -86,6 +86,10 @@ impl Simulation {
             }
         }
         for obj in objects {
+            // obj.apply_impulse(
+            //     obj.position,
+            //     Vector3::new(0.0, -10.0 * delta * obj.mass, 0.0),
+            // );
             obj.update(delta);
         }
     }
@@ -119,6 +123,42 @@ impl Simulation {
                     }
                 } else {
                     Contact::None
+                }
+            }
+            (Collider::Sphere(r), Collider::Box(w, h, d)) => {
+                let inverse_transform =
+                    o2.rotation.inverse() * Translation3::from(-o2.position);
+                let box_space_position = inverse_transform * o1.position;
+                let component_wise_distance = box_space_position.coords.abs()
+                    - Vector3::new(w, h, d) / 2.0;
+                let box_space_normal = component_wise_distance
+                    .zip_map(&box_space_position.coords, |c, p| {
+                        c.max(0.0) * p.signum()
+                    });
+                if box_space_normal.magnitude() > r {
+                    return Contact::None;
+                }
+                let world_space_normal =
+                    inverse_transform.inverse() * box_space_normal;
+                let contact_point_1 = o1.position - world_space_normal;
+                // HACK the are never completely equal
+                let contact_point_2 = contact_point_1;
+                let contact_normal = world_space_normal.normalize();
+                let contact_velocity_1 = o1.local_velocity(contact_point_1);
+                let contact_velocity_2 = o2.local_velocity(contact_point_2);
+                let relative_velocity = contact_velocity_1 - contact_velocity_2;
+                let normal_velocity = contact_normal.dot(&relative_velocity);
+                if normal_velocity > f64::EPSILON {
+                    Contact::None
+                } else if normal_velocity < -f64::EPSILON {
+                    Contact::Colliding {
+                        contact_point_1,
+                        contact_point_2,
+                        relative_velocity,
+                        contact_normal,
+                    }
+                } else {
+                    Contact::Resting {}
                 }
             }
             _ => Contact::None,

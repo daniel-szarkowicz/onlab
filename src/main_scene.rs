@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use anyhow::Result;
-use egui::{DragValue, Window};
+use egui::{DragValue, Ui, Window};
 use glow::HasContext;
 use glutin::surface::GlSurface;
 use nalgebra::{Point3, Rotation3, Scale3, Translation3, Vector3};
@@ -120,14 +120,35 @@ impl MainScene {
 
     fn preset_two_spheres(&mut self) {
         self.objects.clear();
-        for i in 0..2 {
-            self.objects.push(Object {
-                position: Point3::new(3.0 * f64::from(i), 0.0, 0.0),
-                rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
-                mesh_scale: Vector3::new(1.0, 1.0, 1.0),
-                ..Object::new(&self.sphere_mesh, Collider::Sphere(1.0), 1.0)
-            });
-        }
+        self.objects.push(Object {
+            position: Point3::new(0.0, 0.0, 0.0),
+            rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
+            mesh_scale: Vector3::new(1.0, 1.0, 1.0),
+            ..Object::new(&self.sphere_mesh, Collider::Sphere(1.0), 1.0)
+        });
+        self.objects.push(Object {
+            position: Point3::new(3.0, 0.0, 0.0),
+            rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
+            mesh_scale: Vector3::new(1.0, 1.0, 1.0),
+            immovable: true,
+            ..Object::new(&self.sphere_mesh, Collider::Sphere(1.0), 1.0)
+        });
+    }
+
+    fn preset_sphere_and_box(&mut self) {
+        self.objects.clear();
+        self.objects.push(Object {
+            position: Point3::new(0.0, 0.0, 0.0),
+            rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
+            mesh_scale: Vector3::new(1.0, 1.0, 1.0),
+            ..Object::new(&self.sphere_mesh, Collider::Sphere(1.0), 1.0)
+        });
+        self.objects.push(Object {
+            position: Point3::new(3.0, 0.0, 0.0),
+            rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
+            mesh_scale: Vector3::new(1.5, 1.5, 1.5),
+            ..Object::new(&self.box_mesh, Collider::Box(1.5, 1.5, 1.5), 1.0)
+        });
     }
 
     fn preset_wrecking_ball(&mut self) {
@@ -152,9 +173,10 @@ impl MainScene {
             }
         }
         self.objects.push(Object {
-            position: Point3::new(0.0, 0.0, -100.0),
+            position: Point3::new(0.0, 0.0, -3.0),
             mesh_scale: Vector3::new(2.0, 2.0, 2.0),
-            momentum: Vector3::new(0.0, 0.0, 2000.0),
+            momentum: Vector3::new(0.0, 0.0, 1.0),
+            // immovable: true,
             ..Object::new(&self.sphere_mesh, Collider::Sphere(2.0), 20.0)
         });
     }
@@ -178,7 +200,32 @@ impl MainScene {
             position: Point3::new(0.0, 0.0, 50.0),
             angular_momentum: Vector3::new(0.0, 5e12, 0.0),
             mesh_scale: Vector3::new(20.0, 20.0, 20.0),
+            immovable: true,
             ..Object::new(&self.sphere_mesh, Collider::Sphere(20.0), 100_000.0)
+        });
+    }
+
+    fn preset_rotating_paddle(&mut self) {
+        self.objects.clear();
+        for x in -5..=5 {
+            for y in -5..=5 {
+                self.objects.push(Object {
+                    position: Point3::new(
+                        1.5 * f64::from(x),
+                        1.5 * f64::from(y),
+                        0.0,
+                    ),
+                    mesh_scale: Vector3::new(0.5, 0.5, 0.5),
+                    ..Object::new(&self.sphere_mesh, Collider::Sphere(0.5), 1.0)
+                });
+            }
+        }
+        self.objects.push(Object {
+            position: Point3::new(0.0, 0.0, 50.0),
+            angular_momentum: Vector3::new(0.0, 1e2, 0.0),
+            mesh_scale: Vector3::new(40.0, 20.0, 1.0),
+            immovable: true,
+            ..Object::new(&self.box_mesh, Collider::Box(40.0, 20.0, 1.0), 1.0)
         });
     }
 
@@ -326,6 +373,75 @@ impl MainScene {
             ctx.draw_mesh(&self.rectangle_mesh);
         }
     }
+
+    fn draw_ui(&mut self, ui: &mut Ui) {
+        ui.set_min_width(200.0);
+        ui.checkbox(&mut self.paused, "Pause");
+        if ui.button("Many spheres").clicked() {
+            self.preset_many_spheres();
+        }
+        if ui.button("Two spheres").clicked() {
+            self.preset_two_spheres();
+        }
+        if ui.button("Sphere and box").clicked() {
+            self.preset_sphere_and_box();
+        }
+        if ui.button("Wrecking ball").clicked() {
+            self.preset_wrecking_ball();
+        }
+        if ui.button("Spinning ball").clicked() {
+            self.preset_spinning_ball();
+        }
+        if ui.button("Rotating paddle").clicked() {
+            self.preset_rotating_paddle();
+        }
+        ui.checkbox(&mut self.draw_phong, "Draw objects");
+        ui.checkbox(&mut self.draw_debug, "Draw bounds");
+        ui.add(
+            DragValue::new(&mut self.simulation.epsilon)
+                .prefix("Collision energy multiplier: ")
+                .clamp_range(-1.0..=2.0)
+                .speed(0.005),
+        );
+        ui.add(
+            DragValue::new(&mut self.simulation.mu)
+                .prefix("Coefficient of friction: ")
+                .clamp_range(-1.0..=2.0)
+                .speed(0.005),
+        );
+        let total_momentum = self
+            .objects
+            .iter()
+            .map(|o| o.momentum)
+            .sum::<Vector3<f64>>();
+        ui.label(format!("Total momentum: {}", total_momentum.magnitude()));
+        let total_directional_energy = self
+            .objects
+            .iter()
+            .map(|o| o.momentum.magnitude_squared() / o.mass / 2.0)
+            .sum::<f64>();
+        let total_rotational_energy = self
+            .objects
+            .iter()
+            .map(|o| {
+                (o.angular_momentum.transpose()
+                    * o.inverse_inertia()
+                    * o.angular_momentum)
+                    .magnitude()
+                    / 2.0
+            })
+            .sum::<f64>();
+        ui.label(format!(
+            "Total directional energy: {total_directional_energy}"
+        ));
+        ui.label(format!(
+            "Total rotational energy: {total_rotational_energy}"
+        ));
+        ui.label(format!(
+            "Total energy: {}",
+            total_directional_energy + total_rotational_energy
+        ));
+    }
 }
 
 impl Scene for MainScene {
@@ -358,71 +474,7 @@ impl Scene for MainScene {
                 self.draw_hud(ctx);
             }
             ctx.egui.run(&ctx.window, |egui_ctx| {
-                Window::new("Debug").show(egui_ctx, |ui| {
-                    ui.set_min_width(200.0);
-                    ui.checkbox(&mut self.paused, "Pause");
-                    if ui.button("Many spheres").clicked() {
-                        self.preset_many_spheres();
-                    }
-                    if ui.button("Two spheres").clicked() {
-                        self.preset_two_spheres();
-                    }
-                    if ui.button("Wrecking ball").clicked() {
-                        self.preset_wrecking_ball();
-                    }
-                    if ui.button("Spinning ball").clicked() {
-                        self.preset_spinning_ball();
-                    }
-                    ui.checkbox(&mut self.draw_phong, "Draw objects");
-                    ui.checkbox(&mut self.draw_debug, "Draw bounds");
-                    ui.add(
-                        DragValue::new(&mut self.simulation.epsilon)
-                            .prefix("Collision energy multiplier: ")
-                            .clamp_range(-1.0..=2.0)
-                            .speed(0.005),
-                    );
-                    ui.add(
-                        DragValue::new(&mut self.simulation.mu)
-                            .prefix("Coefficient of friction: ")
-                            .clamp_range(-1.0..=2.0)
-                            .speed(0.005),
-                    );
-                    let total_momentum = self
-                        .objects
-                        .iter()
-                        .map(|o| o.momentum)
-                        .sum::<Vector3<f64>>();
-                    ui.label(format!(
-                        "Total momentum: {}",
-                        total_momentum.magnitude()
-                    ));
-                    let total_directional_energy = self
-                        .objects
-                        .iter()
-                        .map(|o| o.momentum.magnitude_squared() / o.mass / 2.0)
-                        .sum::<f64>();
-                    let total_rotational_energy = self
-                        .objects
-                        .iter()
-                        .map(|o| {
-                            (o.angular_momentum.transpose()
-                                * o.inverse_inertia()
-                                * o.angular_momentum)
-                                .magnitude()
-                                / 2.0
-                        })
-                        .sum::<f64>();
-                    ui.label(format!(
-                        "Total directional energy: {total_directional_energy}"
-                    ));
-                    ui.label(format!(
-                        "Total rotational energy: {total_rotational_energy}"
-                    ));
-                    ui.label(format!(
-                        "Total energy: {}",
-                        total_directional_energy + total_rotational_energy
-                    ))
-                });
+                Window::new("Debug").show(egui_ctx, |ui| self.draw_ui(ui));
             });
             ctx.egui.paint(&ctx.window);
             ctx.gl_surface.swap_buffers(&ctx.gl_context).unwrap();
