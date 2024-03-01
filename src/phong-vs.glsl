@@ -4,7 +4,7 @@ uniform mat4 model;
 uniform mat4 view_proj;
 uniform mat4 model_inv;
 
-uniform vec4 wLiPos = vec4(10000, 10000, 10000, 0);
+uniform vec4 wLiPos = vec4(10000, 10000, -10000, 0);
 uniform vec3 wEye;
 
 layout(location = 0) in vec4 vertexPosition;

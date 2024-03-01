@@ -173,9 +173,9 @@ impl MainScene {
             }
         }
         self.objects.push(Object {
-            position: Point3::new(0.0, 0.0, -3.0),
+            position: Point3::new(0.0, 0.0, -30.0),
             mesh_scale: Vector3::new(2.0, 2.0, 2.0),
-            momentum: Vector3::new(0.0, 0.0, 1.0),
+            momentum: Vector3::new(0.0, 0.0, 150.0),
             // immovable: true,
             ..Object::new(&self.sphere_mesh, Collider::Sphere(2.0), 20.0)
         });
@@ -198,14 +198,14 @@ impl MainScene {
         }
         self.objects.push(Object {
             position: Point3::new(0.0, 0.0, 50.0),
-            angular_momentum: Vector3::new(0.0, 5e12, 0.0),
+            angular_momentum: Vector3::new(0.0, 5e6, 0.0),
             mesh_scale: Vector3::new(20.0, 20.0, 20.0),
             immovable: true,
             ..Object::new(&self.sphere_mesh, Collider::Sphere(20.0), 100_000.0)
         });
     }
 
-    fn preset_rotating_paddle(&mut self) {
+    fn preset_rotating_board(&mut self) {
         self.objects.clear();
         for x in -5..=5 {
             for y in -5..=5 {
@@ -221,11 +221,11 @@ impl MainScene {
             }
         }
         self.objects.push(Object {
-            position: Point3::new(0.0, 0.0, 50.0),
-            angular_momentum: Vector3::new(0.0, 1e2, 0.0),
-            mesh_scale: Vector3::new(40.0, 20.0, 1.0),
+            position: Point3::new(0.0, 0.0, 30.0),
+            angular_momentum: Vector3::new(0.0, 1e4, 0.0),
+            mesh_scale: Vector3::new(40.0, 10.0, 1.0),
             immovable: true,
-            ..Object::new(&self.box_mesh, Collider::Box(40.0, 20.0, 1.0), 1.0)
+            ..Object::new(&self.box_mesh, Collider::Box(40.0, 10.0, 1.0), 100.0)
         });
     }
 
@@ -392,8 +392,8 @@ impl MainScene {
         if ui.button("Spinning ball").clicked() {
             self.preset_spinning_ball();
         }
-        if ui.button("Rotating paddle").clicked() {
-            self.preset_rotating_paddle();
+        if ui.button("Rotating board").clicked() {
+            self.preset_rotating_board();
         }
         ui.checkbox(&mut self.draw_phong, "Draw objects");
         ui.checkbox(&mut self.draw_debug, "Draw bounds");

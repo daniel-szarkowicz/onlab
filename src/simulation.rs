@@ -10,7 +10,7 @@
 
 use std::f64;
 
-use nalgebra::{Point3, Translation3, Vector3};
+use nalgebra::{Point3, Vector3};
 
 use crate::{collider::Collider, object::Object};
 
@@ -126,23 +126,25 @@ impl Simulation {
                 }
             }
             (Collider::Sphere(r), Collider::Box(w, h, d)) => {
-                let inverse_transform =
-                    o2.rotation.inverse() * Translation3::from(-o2.position);
-                let box_space_position = inverse_transform * o1.position;
-                let component_wise_distance = box_space_position.coords.abs()
-                    - Vector3::new(w, h, d) / 2.0;
+                let half_size = Vector3::new(w, h, d) / 2.0;
+                let box_space_position =
+                    o2.rotation.inverse() * (o1.position - o2.position);
+                let component_wise_distance =
+                    box_space_position.abs() - half_size;
                 let box_space_normal = component_wise_distance
-                    .zip_map(&box_space_position.coords, |c, p| {
+                    .zip_map(&box_space_position, |c, p| {
                         c.max(0.0) * p.signum()
                     });
                 if box_space_normal.magnitude() > r {
                     return Contact::None;
                 }
-                let world_space_normal =
-                    inverse_transform.inverse() * box_space_normal;
+                let box_space_closest_offset = box_space_position
+                    .zip_map(&half_size, |p, s| p.clamp(-s, s));
+                let world_space_normal = o2.rotation * box_space_normal;
+                let world_space_closest_offset =
+                    o2.rotation * box_space_closest_offset;
                 let contact_point_1 = o1.position - world_space_normal;
-                // HACK the are never completely equal
-                let contact_point_2 = contact_point_1;
+                let contact_point_2 = o2.position + world_space_closest_offset;
                 let contact_normal = world_space_normal.normalize();
                 let contact_velocity_1 = o1.local_velocity(contact_point_1);
                 let contact_velocity_2 = o2.local_velocity(contact_point_2);

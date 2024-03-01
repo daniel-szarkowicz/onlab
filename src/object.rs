@@ -68,12 +68,10 @@ impl Object {
     }
 
     pub fn update(&mut self, delta: f64) {
-        // if !self.immovable {
         self.position += self.momentum * delta / self.mass;
         self.rotation = Rotation3::new(
-            self.inverse_inertia() * self.angular_momentum * delta / self.mass,
+            self.inverse_inertia() * self.angular_momentum * delta,
         ) * self.rotation;
-        // }
     }
 
     #[must_use]
