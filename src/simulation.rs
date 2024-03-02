@@ -10,7 +10,7 @@
 
 use std::{collections::HashSet, vec::Vec};
 
-use nalgebra::{Point3, Vector3};
+use nalgebra::{Point3, SimdPartialOrd, Vector3};
 
 use crate::{collider::Collider, object::Object};
 
@@ -84,8 +84,27 @@ impl Simulation {
         x_potential_contacts
             .iter()
             .filter_map(|&(i, j)| {
-                self.check_contact(&objects[i], &objects[j])
-                    .map(|contact| (i, j, contact))
+                let o1 = &objects[i];
+                let o2 = &objects[j];
+                let (s1, e1) = o1.aabb();
+                let (s2, e2) = o2.aabb();
+                if e2
+                    .coords
+                    .zip_map(&s1.coords, |e, s| e < s)
+                    .iter()
+                    .any(|a| *a)
+                {
+                    return None;
+                }
+                if e1
+                    .coords
+                    .zip_map(&s2.coords, |e, s| e < s)
+                    .iter()
+                    .any(|a| *a)
+                {
+                    return None;
+                }
+                self.check_contact(o1, o2).map(|contact| (i, j, contact))
             })
             .collect()
     }

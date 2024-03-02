@@ -24,6 +24,8 @@ pub struct Object {
     // because it is inferred from collider and mass
     pub inverse_body_inertia: Matrix3<f64>,
     pub mesh_scale: Vector3<f32>,
+    pub aabb_start: Point3<f64>,
+    pub aabb_end: Point3<f64>,
 }
 
 impl Object {
@@ -44,6 +46,8 @@ impl Object {
             inverse_body_inertia: collider.inverse_inertia(mass),
             collider,
             mesh_scale: Vector3::new(1.0, 1.0, 1.0),
+            aabb_start: Default::default(),
+            aabb_end: Default::default(),
         }
     }
 
@@ -72,11 +76,14 @@ impl Object {
         self.rotation = Rotation3::new(
             self.inverse_inertia() * self.angular_momentum * delta,
         ) * self.rotation;
+        (self.aabb_start, self.aabb_end) =
+            self.collider.aabb(&self.position, &self.rotation);
     }
 
     #[must_use]
     pub fn aabb(&self) -> (Point3<f64>, Point3<f64>) {
-        self.collider.aabb(&self.position, &self.rotation)
+        // self.collider.aabb(&self.position, &self.rotation)
+        (self.aabb_start, self.aabb_end)
     }
 
     #[must_use]
