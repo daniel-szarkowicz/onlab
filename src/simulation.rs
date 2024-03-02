@@ -23,67 +23,11 @@ pub struct Simulation {
 
 impl Simulation {
     pub fn simulate(&mut self, objects: &mut [Object], delta: f64) {
-        for i in 0..objects.len() {
-            for j in (i + 1)..objects.len() {
-                let (a, b) = objects.split_at_mut(j);
-                let o1 = &mut a[i];
-                let o2 = &mut b[0];
-                let contact = self.check_contact(o1, o2);
-                match contact {
-                    Contact::Colliding {
-                        contact_point_1,
-                        contact_point_2,
-                        relative_velocity,
-                        contact_normal,
-                    } => {
-                        let normal_ka = o1.impulse_effectiveness(
-                            contact_point_1,
-                            contact_normal,
-                        );
-                        let normal_kb = o2.impulse_effectiveness(
-                            contact_point_2,
-                            contact_normal,
-                        );
-
-                        let normal_impulse_strength = -(self.epsilon + 1.0)
-                            * contact_normal.dot(&relative_velocity)
-                            / (normal_ka + normal_kb);
-
-                        let nonnormal_relative_velocity = relative_velocity
-                            - contact_normal
-                                * contact_normal.dot(&relative_velocity);
-                        let nonnormal_relative_velocity_direction =
-                            -nonnormal_relative_velocity
-                                .try_normalize(f64::EPSILON)
-                                .unwrap_or_else(Vector3::x);
-
-                        let friction_ka = o1.impulse_effectiveness(
-                            contact_point_1,
-                            nonnormal_relative_velocity_direction,
-                        );
-                        let friction_kb = o1.impulse_effectiveness(
-                            contact_point_1,
-                            nonnormal_relative_velocity_direction,
-                        );
-
-                        let friction_impulse_max_strength =
-                            -nonnormal_relative_velocity_direction
-                                .dot(&relative_velocity)
-                                / (friction_ka + friction_kb);
-                        let friction_impulse_strength =
-                            friction_impulse_max_strength
-                                .min(self.mu * normal_impulse_strength);
-
-                        let impulse = contact_normal * normal_impulse_strength
-                            + nonnormal_relative_velocity_direction
-                                * friction_impulse_strength;
-                        o1.apply_impulse(contact_point_1, impulse);
-                        o2.apply_impulse(contact_point_2, -impulse);
-                    }
-                    Contact::Resting {} => { /* TODO */ }
-                    Contact::None => (),
-                }
-            }
+        let contacts = self.check_contacts(objects);
+        for (i, j, contact) in &*contacts {
+            assert!(i < j);
+            let (s1, s2) = objects.split_at_mut(*j);
+            self.resolve_contact(&mut s1[*i], &mut s2[0], contact);
         }
         for obj in objects {
             // obj.apply_impulse(
@@ -94,35 +38,63 @@ impl Simulation {
         }
     }
 
+    fn check_contacts(
+        &mut self,
+        objects: &[Object],
+    ) -> Box<[(usize, usize, Contact)]> {
+        let objects = objects.iter().enumerate();
+        let mut checks = 0;
+        let result = objects
+            .clone()
+            .flat_map(|(i, o1)| {
+                std::iter::repeat((i, o1)).zip(objects.clone().skip(i + 1))
+            })
+            .filter_map(|((i, o1), (j, o2))| {
+                checks += 1;
+                self.check_contact(o1, o2).map(|contact| (i, j, contact))
+            })
+            .collect();
+        // dbg!(checks);
+        #[allow(clippy::let_and_return)]
+        result
+    }
+
+    fn resolve_contact(
+        &self,
+        o1: &mut Object,
+        o2: &mut Object,
+        contact: &Contact,
+    ) {
+        let relative_velocity = o1.local_velocity(contact.points.0)
+            - o2.local_velocity(contact.points.1);
+        let normal_velocity = relative_velocity.dot(&contact.normal);
+        #[allow(clippy::if_same_then_else)]
+        if normal_velocity < -f64::EPSILON {
+            self.resolve_colliding_contact(o1, o2, contact);
+        } else if normal_velocity < f64::EPSILON {
+            // TODO: handle resting contact separately
+            self.resolve_colliding_contact(o1, o2, contact);
+        } else {
+            // separating contact
+        }
+    }
+
     #[allow(clippy::unused_self)]
-    fn check_contact(&mut self, o1: &Object, o2: &Object) -> Contact {
+    fn check_contact(&mut self, o1: &Object, o2: &Object) -> Option<Contact> {
         match (o1.collider, o2.collider) {
             (Collider::Sphere(r1), Collider::Sphere(r2)) => {
                 let center_distance = o1.position - o2.position;
-                if center_distance.magnitude() < r1 + r2 {
+                if center_distance.magnitude() <= r1 + r2 {
                     let contact_normal = center_distance.normalize();
-                    let contact_point_1 = o1.position - contact_normal * r1;
-                    let contact_point_2 = o2.position + contact_normal * r2;
-                    let contact_velocity_1 = o1.local_velocity(contact_point_1);
-                    let contact_velocity_2 = o2.local_velocity(contact_point_2);
-                    let relative_velocity =
-                        contact_velocity_1 - contact_velocity_2;
-                    let normal_velocity =
-                        contact_normal.dot(&relative_velocity);
-                    if normal_velocity > f64::EPSILON {
-                        Contact::None
-                    } else if normal_velocity < -f64::EPSILON {
-                        Contact::Colliding {
-                            contact_point_1,
-                            contact_point_2,
-                            relative_velocity,
-                            contact_normal,
-                        }
-                    } else {
-                        Contact::Resting {}
-                    }
+                    Some(Contact {
+                        points: (
+                            o1.position - contact_normal * r1,
+                            o2.position + contact_normal * r2,
+                        ),
+                        normal: contact_normal,
+                    })
                 } else {
-                    Contact::None
+                    None
                 }
             }
             (Collider::Sphere(r), Collider::Box(w, h, d)) => {
@@ -136,46 +108,65 @@ impl Simulation {
                         c.max(0.0) * p.signum()
                     });
                 if box_space_normal.magnitude() > r {
-                    return Contact::None;
+                    return None;
                 }
                 let box_space_closest_offset = box_space_position
                     .zip_map(&half_size, |p, s| p.clamp(-s, s));
                 let world_space_normal = o2.rotation * box_space_normal;
                 let world_space_closest_offset =
                     o2.rotation * box_space_closest_offset;
-                let contact_point_1 = o1.position - world_space_normal;
-                let contact_point_2 = o2.position + world_space_closest_offset;
-                let contact_normal = world_space_normal.normalize();
-                let contact_velocity_1 = o1.local_velocity(contact_point_1);
-                let contact_velocity_2 = o2.local_velocity(contact_point_2);
-                let relative_velocity = contact_velocity_1 - contact_velocity_2;
-                let normal_velocity = contact_normal.dot(&relative_velocity);
-                if normal_velocity > f64::EPSILON {
-                    Contact::None
-                } else if normal_velocity < -f64::EPSILON {
-                    Contact::Colliding {
-                        contact_point_1,
-                        contact_point_2,
-                        relative_velocity,
-                        contact_normal,
-                    }
-                } else {
-                    Contact::Resting {}
-                }
+                Some(Contact {
+                    points: (
+                        o1.position - world_space_normal,
+                        o2.position + world_space_closest_offset,
+                    ),
+                    normal: world_space_normal.normalize(),
+                })
             }
-            _ => Contact::None,
+            _ => None,
         }
+    }
+
+    fn resolve_colliding_contact(
+        &self,
+        o1: &mut Object,
+        o2: &mut Object,
+        contact: &Contact,
+    ) {
+        let relative_velocity = o1.local_velocity(contact.points.0)
+            - o2.local_velocity(contact.points.1);
+        let normal_impulse_strength = -(self.epsilon + 1.0)
+            * contact.normal.dot(&relative_velocity)
+            / (o1.impulse_effectiveness(contact.points.0, contact.normal)
+                + o2.impulse_effectiveness(contact.points.1, contact.normal));
+
+        let nonnormal_relative_velocity = relative_velocity
+            - contact.normal * contact.normal.dot(&relative_velocity);
+        let nonnormal_relative_velocity_direction =
+            -nonnormal_relative_velocity
+                .try_normalize(f64::EPSILON)
+                .unwrap_or_else(Vector3::x);
+
+        let friction_impulse_max_strength =
+            -nonnormal_relative_velocity_direction.dot(&relative_velocity)
+                / (o1.impulse_effectiveness(
+                    contact.points.0,
+                    nonnormal_relative_velocity_direction,
+                ) + o2.impulse_effectiveness(
+                    contact.points.1,
+                    nonnormal_relative_velocity_direction,
+                ));
+        let friction_impulse_strength = friction_impulse_max_strength
+            .min(self.mu * normal_impulse_strength);
+
+        let impulse = contact.normal * normal_impulse_strength
+            + nonnormal_relative_velocity_direction * friction_impulse_strength;
+        o1.apply_impulse(contact.points.0, impulse);
+        o2.apply_impulse(contact.points.1, -impulse);
     }
 }
 
-#[derive(Debug)]
-pub enum Contact {
-    None,
-    Resting {/* TODO: fields */},
-    Colliding {
-        contact_point_1: Point3<f64>,
-        contact_point_2: Point3<f64>,
-        relative_velocity: Vector3<f64>,
-        contact_normal: Vector3<f64>,
-    },
+struct Contact {
+    points: (Point3<f64>, Point3<f64>),
+    normal: Vector3<f64>,
 }
