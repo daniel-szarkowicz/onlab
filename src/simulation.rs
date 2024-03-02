@@ -8,7 +8,7 @@
 //   7. resolve collisions one-by-one
 //   8.
 
-use std::{cmp::Ordering, collections::HashSet, f64};
+use std::{collections::HashSet, vec::Vec};
 
 use nalgebra::{Point3, Vector3};
 
@@ -47,25 +47,19 @@ impl Simulation {
             Start,
             End,
         }
-        fn double_cmp(
-            (i1, j1): &(usize, usize),
-            (i2, j2): &(usize, usize),
-        ) -> Ordering {
-            i1.cmp(i2).then(j1.cmp(j2))
-        }
-        type PCCollection = Vec<(usize, usize)>;
 
         fn get_potential_contacts(
             mut intervals: Vec<(usize, f64, Interval)>,
-        ) -> PCCollection {
+        ) -> Vec<(usize, usize)> {
             intervals.sort_unstable_by(|(_, a, _), (_, b, _)| a.total_cmp(b));
             let mut open_intervals = HashSet::new();
-            let mut potential_contacts = vec![];
-            for (i, _, interval) in intervals {
+            let mut potential_contacts =
+                Vec::with_capacity(intervals.len() * intervals.len() / 40);
+            for (i, _, interval) in &intervals {
                 match interval {
                     Interval::Start => {
                         for &j in &open_intervals {
-                            potential_contacts.push((i.min(j), i.max(j)));
+                            potential_contacts.push((*i.min(j), *i.max(j)));
                         }
                         open_intervals.insert(i);
                     }
@@ -74,28 +68,9 @@ impl Simulation {
                     }
                 }
             }
-            potential_contacts.sort_unstable_by(double_cmp);
             potential_contacts
         }
-        fn merge_potential_contacts(
-            pc1: &PCCollection,
-            pc2: &PCCollection,
-        ) -> PCCollection {
-            let mut pc = vec![];
-            let (mut i1, mut i2) = (0, 0);
-            while i1 < pc1.len() && i2 < pc2.len() {
-                match double_cmp(&pc1[i1], &pc2[i2]) {
-                    Ordering::Less => i1 += 1,
-                    Ordering::Greater => i2 += 2,
-                    Ordering::Equal => {
-                        pc.push(pc1[i1]);
-                        i1 += 1;
-                        i2 += 1;
-                    }
-                }
-            }
-            pc
-        }
+
         let objects_iter = objects.iter().enumerate();
         let intervals = objects_iter.clone().flat_map(|(i, o)| {
             let (s, e) = o.aabb();
@@ -103,33 +78,16 @@ impl Simulation {
         });
         let x_intervals: Vec<_> =
             intervals.clone().map(|(i, p, t)| (i, p.x, t)).collect();
-        let y_intervals: Vec<_> =
-            intervals.clone().map(|(i, p, t)| (i, p.y, t)).collect();
-        let z_intervals: Vec<_> =
-            intervals.clone().map(|(i, p, t)| (i, p.z, t)).collect();
+
         let x_potential_contacts = get_potential_contacts(x_intervals);
-        let y_potential_contacts = get_potential_contacts(y_intervals);
-        let z_potential_contacts = get_potential_contacts(z_intervals);
-        let mut checks = 0;
-        let potential_contacts = merge_potential_contacts(
-            &x_potential_contacts,
-            &y_potential_contacts,
-        );
-        let potential_contacts = merge_potential_contacts(
-            &potential_contacts,
-            &z_potential_contacts,
-        );
-        let result = potential_contacts
+
+        x_potential_contacts
             .iter()
             .filter_map(|&(i, j)| {
-                checks += 1;
                 self.check_contact(&objects[i], &objects[j])
                     .map(|contact| (i, j, contact))
             })
-            .collect();
-        // dbg!(checks);
-        #[allow(clippy::let_and_return)]
-        result
+            .collect()
     }
 
     fn resolve_contact(

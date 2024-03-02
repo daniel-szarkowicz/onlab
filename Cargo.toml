@@ -18,8 +18,13 @@ rand = "0.8.5"
 raw-window-handle = "0.5.2"
 winit = { version = "0.29.10", features = [ "wayland" ] }
 
+[target.x86_64-unknown-linux-gnu]
+linker = "/usr/bin/clang"
+rustflags = ["-Clink-arg=-fuse-ld=lld", "-Clink-arg=-Wl,--no-rosegment"]
+
 [profile.release]
 opt-level = 3
+debug = true
 # lto = true
 
 [lints.rust]

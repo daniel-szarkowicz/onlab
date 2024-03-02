@@ -484,9 +484,6 @@ impl Scene for MainScene {
     fn update(&mut self, delta: f64) {
         const TICK_RATE_TARGET: f64 = 100.0;
         const MAX_STEP_COUNT: u32 = 10;
-        if delta > 0.02 {
-            dbg!(delta);
-        }
         self.camera.update(delta as f32);
         if !self.paused {
             #[allow(clippy::cast_sign_loss)]

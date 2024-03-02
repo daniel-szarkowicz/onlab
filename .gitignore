@@ -1,2 +1,5 @@
 /target
 *.pdf
+*.svg
+perf.data
+perf.data.old
