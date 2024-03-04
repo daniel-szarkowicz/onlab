@@ -19,6 +19,7 @@ use crate::{collider::Collider, object::Object};
 pub struct Simulation {
     pub epsilon: f64,
     pub mu: f64,
+    pub pc_scratchbuf: Vec<u8>,
 }
 
 impl Simulation {
@@ -38,6 +39,7 @@ impl Simulation {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn check_contacts(
         &mut self,
         objects: &[Object],
@@ -48,54 +50,93 @@ impl Simulation {
             End,
         }
 
-        fn get_potential_contacts(
-            mut intervals: Vec<(usize, f64, Interval)>,
-        ) -> Vec<(usize, usize)> {
-            intervals.sort_unstable_by(|(_, a, _), (_, b, _)| a.total_cmp(b));
-            let mut open_intervals = HashSet::new();
-            let mut potential_contacts =
-                Vec::with_capacity(intervals.len() * intervals.len() / 40);
-            for (i, _, interval) in &intervals {
-                match interval {
-                    Interval::Start => {
-                        for &j in &open_intervals {
-                            potential_contacts.push((*i.min(j), *i.max(j)));
-                        }
-                        open_intervals.insert(i);
+        let objects_iter = objects.iter().enumerate();
+        let mut intervals: Vec<_> = objects_iter
+            .clone()
+            .flat_map(|(i, o)| {
+                let aabb = o.aabb();
+                [
+                    (i, aabb.start(), Interval::Start),
+                    (i, aabb.end(), Interval::End),
+                ]
+            })
+            .collect();
+
+        let mut open_intervals = HashSet::with_capacity(objects.len() / 10);
+        let mut x_potential_contacts =
+            Vec::with_capacity(objects.len() * objects.len() / 10);
+        self.pc_scratchbuf.resize(objects.len() * objects.len(), 0);
+        let scratchbuf = &mut self.pc_scratchbuf[..];
+        intervals.sort_unstable_by(|(_, a, _), (_, b, _)| a.x.total_cmp(&b.x));
+        for (i, _, interval) in &intervals {
+            match interval {
+                Interval::Start => {
+                    for j in &open_intervals {
+                        let mini = *i.min(j);
+                        let maxi = *i.max(j);
+                        scratchbuf[mini * objects.len() + maxi] = 1;
+                        x_potential_contacts.push((mini, maxi));
                     }
-                    Interval::End => {
-                        open_intervals.remove(&i);
-                    }
+                    open_intervals.insert(*i);
+                }
+                Interval::End => {
+                    open_intervals.remove(i);
                 }
             }
-            potential_contacts
         }
 
-        let objects_iter = objects.iter().enumerate();
-        let intervals = objects_iter.clone().flat_map(|(i, o)| {
-            let aabb = o.aabb();
-            [
-                (i, aabb.start(), Interval::Start),
-                (i, aabb.end(), Interval::End),
-            ]
-        });
-        let x_intervals: Vec<_> =
-            intervals.clone().map(|(i, p, t)| (i, p.x, t)).collect();
+        let mut pc_upper_bound = 0;
+        intervals.sort_unstable_by(|(_, a, _), (_, b, _)| a.y.total_cmp(&b.y));
+        for (i, _, interval) in &intervals {
+            match interval {
+                Interval::Start => {
+                    for j in &open_intervals {
+                        let mini = *i.min(j);
+                        let maxi = *i.max(j);
+                        scratchbuf[mini * objects.len() + maxi] <<= 1;
+                        pc_upper_bound += 1;
+                    }
+                    open_intervals.insert(*i);
+                }
+                Interval::End => {
+                    open_intervals.remove(i);
+                }
+            }
+        }
 
-        let x_potential_contacts = get_potential_contacts(x_intervals);
+        let mut true_potential_contacts = Vec::with_capacity(pc_upper_bound);
 
-        x_potential_contacts
-            .iter()
-            .filter_map(|&(i, j)| {
+        intervals.sort_unstable_by(|(_, a, _), (_, b, _)| a.z.total_cmp(&b.z));
+        for (i, _, interval) in &intervals {
+            match interval {
+                Interval::Start => {
+                    for j in &open_intervals {
+                        let mini = *i.min(j);
+                        let maxi = *i.max(j);
+                        if scratchbuf[mini * objects.len() + maxi] == 2 {
+                            true_potential_contacts.push((mini, maxi));
+                        }
+                    }
+                    open_intervals.insert(*i);
+                }
+                Interval::End => {
+                    open_intervals.remove(i);
+                }
+            }
+        }
+
+        let contacts = true_potential_contacts
+            .into_iter()
+            .filter_map(|(i, j)| {
                 let o1 = &objects[i];
                 let o2 = &objects[j];
-                if o1.aabb().overlaps(o2.aabb()) {
-                    self.check_contact(o1, o2).map(|contact| (i, j, contact))
-                } else {
-                    None
-                }
+                Self::check_contact(o1, o2).map(|contact| (i, j, contact))
             })
-            .collect()
+            .collect();
+        for (i, j) in x_potential_contacts {
+            self.pc_scratchbuf[i * objects.len() + j] = 0;
+        }
+        contacts
     }
 
     fn resolve_contact(
@@ -118,8 +159,7 @@ impl Simulation {
         }
     }
 
-    #[allow(clippy::unused_self)]
-    fn check_contact(&mut self, o1: &Object, o2: &Object) -> Option<Contact> {
+    fn check_contact(o1: &Object, o2: &Object) -> Option<Contact> {
         match (o1.collider, o2.collider) {
             (Collider::Sphere(r1), Collider::Sphere(r2)) => {
                 let center_distance = o1.position - o2.position;

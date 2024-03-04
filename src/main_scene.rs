@@ -75,6 +75,7 @@ impl MainScene {
             simulation: Simulation {
                 epsilon: 1.0,
                 mu: 1.0,
+                pc_scratchbuf: vec![],
             },
         })
     }
