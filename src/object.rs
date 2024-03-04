@@ -4,7 +4,7 @@ use nalgebra::{
     Matrix3, Matrix4, Point3, Rotation3, Scale3, Translation3, Vector3,
 };
 
-use crate::{collider::Collider, mesh::Mesh, vertex::PNVertex};
+use crate::{aabb::AABB, collider::Collider, mesh::Mesh, vertex::PNVertex};
 
 #[derive(Debug)]
 pub struct Object {
@@ -24,8 +24,7 @@ pub struct Object {
     // because it is inferred from collider and mass
     pub inverse_body_inertia: Matrix3<f64>,
     pub mesh_scale: Vector3<f32>,
-    pub aabb_start: Point3<f64>,
-    pub aabb_end: Point3<f64>,
+    pub aabb: AABB,
 }
 
 impl Object {
@@ -46,8 +45,7 @@ impl Object {
             inverse_body_inertia: collider.inverse_inertia(mass),
             collider,
             mesh_scale: Vector3::new(1.0, 1.0, 1.0),
-            aabb_start: Default::default(),
-            aabb_end: Default::default(),
+            aabb: AABB::new(Point3::default(), Point3::default()),
         }
     }
 
@@ -76,14 +74,12 @@ impl Object {
         self.rotation = Rotation3::new(
             self.inverse_inertia() * self.angular_momentum * delta,
         ) * self.rotation;
-        (self.aabb_start, self.aabb_end) =
-            self.collider.aabb(&self.position, &self.rotation);
+        self.aabb = self.collider.aabb(&self.position, &self.rotation);
     }
 
     #[must_use]
-    pub fn aabb(&self) -> (Point3<f64>, Point3<f64>) {
-        // self.collider.aabb(&self.position, &self.rotation)
-        (self.aabb_start, self.aabb_end)
+    pub const fn aabb(&self) -> &AABB {
+        &self.aabb
     }
 
     #[must_use]

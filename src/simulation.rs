@@ -10,7 +10,7 @@
 
 use std::{collections::HashSet, vec::Vec};
 
-use nalgebra::{Point3, SimdPartialOrd, Vector3};
+use nalgebra::{Point3, Vector3};
 
 use crate::{collider::Collider, object::Object};
 
@@ -73,8 +73,11 @@ impl Simulation {
 
         let objects_iter = objects.iter().enumerate();
         let intervals = objects_iter.clone().flat_map(|(i, o)| {
-            let (s, e) = o.aabb();
-            [(i, s, Interval::Start), (i, e, Interval::End)]
+            let aabb = o.aabb();
+            [
+                (i, aabb.start(), Interval::Start),
+                (i, aabb.end(), Interval::End),
+            ]
         });
         let x_intervals: Vec<_> =
             intervals.clone().map(|(i, p, t)| (i, p.x, t)).collect();
@@ -86,25 +89,11 @@ impl Simulation {
             .filter_map(|&(i, j)| {
                 let o1 = &objects[i];
                 let o2 = &objects[j];
-                let (s1, e1) = o1.aabb();
-                let (s2, e2) = o2.aabb();
-                if e2
-                    .coords
-                    .zip_map(&s1.coords, |e, s| e < s)
-                    .iter()
-                    .any(|a| *a)
-                {
-                    return None;
+                if o1.aabb().overlaps(o2.aabb()) {
+                    self.check_contact(o1, o2).map(|contact| (i, j, contact))
+                } else {
+                    None
                 }
-                if e1
-                    .coords
-                    .zip_map(&s2.coords, |e, s| e < s)
-                    .iter()
-                    .any(|a| *a)
-                {
-                    return None;
-                }
-                self.check_contact(o1, o2).map(|contact| (i, j, contact))
             })
             .collect()
     }

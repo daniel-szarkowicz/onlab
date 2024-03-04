@@ -155,7 +155,7 @@ impl MainScene {
         self.objects.clear();
         for x in -7..=7 {
             for y in -7..=7 {
-                for z in 0..3 {
+                for z in 0..10 {
                     self.objects.push(Object {
                         position: Point3::new(
                             f64::from(x),
@@ -175,7 +175,7 @@ impl MainScene {
         self.objects.push(Object {
             position: Point3::new(0.0, 0.0, -30.0),
             mesh_scale: Vector3::new(2.0, 2.0, 2.0),
-            momentum: Vector3::new(0.0, 0.0, 150.0),
+            momentum: Vector3::new(0.0, 0.0, 450.0),
             // immovable: true,
             ..Object::new(&self.sphere_mesh, Collider::Sphere(2.0), 20.0)
         });
@@ -316,9 +316,9 @@ impl MainScene {
                 )
                 .unwrap();
             for object in &self.objects {
-                let (min, max) = object.aabb();
-                let size = max - min;
-                let pos = min + size / 2.0;
+                let aabb = object.aabb();
+                let size = aabb.end() - aabb.start();
+                let pos = aabb.start() + size / 2.0;
                 let model_m = Translation3::from(pos.cast::<f32>())
                     .to_homogeneous()
                     * Scale3::from(size.cast::<f32>()).to_homogeneous();

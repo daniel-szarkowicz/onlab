@@ -2,7 +2,7 @@ use nalgebra::{
     Matrix3, Matrix4, Point3, Rotation3, Scale3, Translation3, Vector3, Vector4,
 };
 
-use crate::ray::Ray;
+use crate::{aabb::AABB, ray::Ray};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Collider {
@@ -72,9 +72,9 @@ impl Collider {
         &self,
         position: &Point3<f64>,
         rotation: &Rotation3<f64>,
-    ) -> (Point3<f64>, Point3<f64>) {
+    ) -> AABB {
         match self {
-            Self::Sphere(r) => (
+            Self::Sphere(r) => AABB::new(
                 position + Vector3::new(-r, -r, -r),
                 position + Vector3::new(*r, *r, *r),
             ),
@@ -91,7 +91,7 @@ impl Collider {
                         }
                     }
                 }
-                (min, max)
+                AABB::new(min, max)
             }
         }
     }
