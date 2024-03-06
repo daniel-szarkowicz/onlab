@@ -40,6 +40,57 @@ impl AABB {
             && other.start.z <= self.end.z
     }
 
+    /// Check whether two AABBs overlap.
+    #[must_use]
+    #[inline]
+    pub fn overlaps_xy(&self, other: &Self) -> bool {
+        self.start.x <= other.end.x
+            && self.start.y <= other.end.y
+            && other.start.x <= self.end.x
+            && other.start.y <= self.end.y
+    }
+
+    /// Check whether two AABBs overlap.
+    #[must_use]
+    #[inline]
+    pub fn overlaps_xz(&self, other: &Self) -> bool {
+        self.start.x <= other.end.x
+            && self.start.z <= other.end.z
+            && other.start.x <= self.end.x
+            && other.start.z <= self.end.z
+    }
+
+    /// Check whether two AABBs overlap.
+    #[must_use]
+    #[inline]
+    pub fn overlaps_yz(&self, other: &Self) -> bool {
+        self.start.y <= other.end.y
+            && self.start.z <= other.end.z
+            && other.start.y <= self.end.y
+            && other.start.z <= self.end.z
+    }
+
+    /// Check whether two AABBs overlap.
+    #[must_use]
+    #[inline]
+    pub fn overlaps_x(&self, other: &Self) -> bool {
+        self.start.x <= other.end.x && other.start.x <= self.end.x
+    }
+
+    /// Check whether two AABBs overlap.
+    #[must_use]
+    #[inline]
+    pub fn overlaps_y(&self, other: &Self) -> bool {
+        self.start.y <= other.end.y && other.start.y <= self.end.y
+    }
+
+    /// Check whether two AABBs overlap.
+    #[must_use]
+    #[inline]
+    pub fn overlaps_z(&self, other: &Self) -> bool {
+        self.start.z <= other.end.z && other.start.z <= self.end.z
+    }
+
     #[must_use]
     #[inline]
     pub const fn start(&self) -> &Point3<f64> {

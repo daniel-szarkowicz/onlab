@@ -82,9 +82,9 @@ impl MainScene {
     fn preset_many_spheres(&mut self) {
         self.objects.clear();
         let mut random = rand::thread_rng();
-        for x in -2..=2 {
-            for y in 2..=6 {
-                for z in -2..=2 {
+        for x in -7..=7 {
+            for y in 2..=16 {
+                for z in -7..=7 {
                     let r = random.gen_range(0.25..=1.5);
                     self.objects.push(Object {
                         position: Point3::new(
@@ -445,7 +445,7 @@ impl MainScene {
 }
 
 impl Scene for MainScene {
-    fn draw(&mut self, ctx: &mut Context) {
+    fn draw(&mut self, ctx: &mut Context, delta: f64) {
         if self.camera.focus() {
             ctx.window
                 .set_cursor_grab(CursorGrabMode::Locked)
@@ -474,7 +474,10 @@ impl Scene for MainScene {
                 self.draw_hud(ctx);
             }
             ctx.egui.run(&ctx.window, |egui_ctx| {
-                Window::new("Debug").show(egui_ctx, |ui| self.draw_ui(ui));
+                Window::new("Debug").show(egui_ctx, |ui| {
+                    ui.label(format!("FPS: {:2.2}", 1.0 / delta));
+                    self.draw_ui(ui);
+                });
             });
             ctx.egui.paint(&ctx.window);
             ctx.gl_surface.swap_buffers(&ctx.gl_context).unwrap();

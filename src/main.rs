@@ -48,7 +48,7 @@ fn main() -> Result<()> {
                                     // println!("fps {}", 1.0 / dt.as_secs_f32());
                                     prev_time = time;
                                     scene.update(dt.as_secs_f64());
-                                    scene.draw(&mut ctx);
+                                    scene.draw(&mut ctx, dt.as_secs_f64());
                                     ctx.window.request_redraw();
                                 }
                                 _ => {}

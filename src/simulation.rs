@@ -14,7 +14,6 @@ use nalgebra::{Point3, Vector3};
 
 use crate::{collider::Collider, object::Object};
 
-// simulation should cache aabb ordering for a considerable speedup
 #[derive(Debug)]
 pub struct Simulation {
     pub epsilon: f64,
@@ -48,52 +47,44 @@ impl Simulation {
             End,
         }
 
-        fn get_potential_contacts(
-            mut intervals: Vec<(usize, f64, Interval)>,
-        ) -> Vec<(usize, usize)> {
-            intervals.sort_unstable_by(|(_, a, _), (_, b, _)| a.total_cmp(b));
-            let mut open_intervals = HashSet::new();
-            let mut potential_contacts =
-                Vec::with_capacity(intervals.len() * intervals.len() / 40);
-            for (i, _, interval) in &intervals {
-                match interval {
-                    Interval::Start => {
-                        for &j in &open_intervals {
-                            potential_contacts.push((*i.min(j), *i.max(j)));
+        let mut intervals: Vec<_> = objects
+            .iter()
+            .enumerate()
+            .flat_map(|(i, o)| {
+                let aabb = o.aabb();
+                [
+                    (i, aabb.start(), Interval::Start),
+                    (i, aabb.end(), Interval::End),
+                ]
+            })
+            .collect();
+
+        intervals.sort_unstable_by(|(_, a, _), (_, b, _)| a.x.total_cmp(&b.x));
+
+        let mut open_intervals =
+            HashSet::<usize>::with_capacity(intervals.len() / 20);
+        let mut potential_contacts = Vec::with_capacity(objects.len() * 2);
+        for (i, _, interval) in intervals {
+            match interval {
+                Interval::Start => {
+                    for &j in &open_intervals {
+                        if objects[i].aabb().overlaps_yz(objects[j].aabb()) {
+                            potential_contacts.push((i.min(j), i.max(j)));
                         }
-                        open_intervals.insert(i);
                     }
-                    Interval::End => {
-                        open_intervals.remove(&i);
-                    }
+                    open_intervals.insert(i);
+                }
+                Interval::End => {
+                    open_intervals.remove(&i);
                 }
             }
-            potential_contacts
         }
 
-        let objects_iter = objects.iter().enumerate();
-        let intervals = objects_iter.clone().flat_map(|(i, o)| {
-            let aabb = o.aabb();
-            [
-                (i, aabb.start(), Interval::Start),
-                (i, aabb.end(), Interval::End),
-            ]
-        });
-        let x_intervals: Vec<_> =
-            intervals.clone().map(|(i, p, t)| (i, p.x, t)).collect();
-
-        let x_potential_contacts = get_potential_contacts(x_intervals);
-
-        x_potential_contacts
+        potential_contacts
             .iter()
             .filter_map(|&(i, j)| {
-                let o1 = &objects[i];
-                let o2 = &objects[j];
-                if o1.aabb().overlaps(o2.aabb()) {
-                    self.check_contact(o1, o2).map(|contact| (i, j, contact))
-                } else {
-                    None
-                }
+                self.check_contact(&objects[i], &objects[j])
+                    .map(|contact| (i, j, contact))
             })
             .collect()
     }
