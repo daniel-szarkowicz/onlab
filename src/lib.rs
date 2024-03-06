@@ -7,6 +7,7 @@ pub mod mesh;
 pub mod meshes;
 pub mod object;
 pub mod ray;
+pub mod rtree;
 pub mod scene;
 pub mod shader_program;
 pub mod simulation;
