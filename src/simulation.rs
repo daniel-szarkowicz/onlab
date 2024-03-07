@@ -23,16 +23,23 @@ pub struct Simulation {
 
 impl Default for Simulation {
     fn default() -> Self {
+        let mut rtree = RTree::new();
+        for _ in 0..100 {
+            let x = rand::random::<f64>() * 100.0;
+            let y = rand::random::<f64>() * 100.0;
+            let z = rand::random::<f64>() * 100.0;
+            rtree.insert(
+                AABB::new(
+                    Point3::new(x, y, z),
+                    Point3::new(x + 1.0, y + 1.0, z + 1.0),
+                ),
+                0,
+            );
+        }
         Self {
             epsilon: 1.0,
             mu: 1.0,
-            rtree: RTree::bad_new(
-                AABB::new(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Point3::new(1.0, 1.0, 1.0),
-                ),
-                0,
-            ),
+            rtree,
         }
     }
 }

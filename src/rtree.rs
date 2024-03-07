@@ -4,43 +4,35 @@
 use crate::aabb::AABB;
 use std::fmt::Debug;
 
-const NODE_MAX_CHINDREN: usize = 16;
+const NODE_MAX_CHILDREN: usize = 16;
 
 pub struct RTree<T> {
-    root: Option<RTreeNode<T>>,
+    root: Option<Node<T>>,
 }
 
-struct RTreeNode<T> {
+struct Node<T> {
     aabb: AABB,
     entry: Entry<T>,
 }
 
+struct Leaf<T> {
+    aabb: AABB,
+    data: T,
+}
+
 enum Entry<T> {
-    Nodes(Vec<RTreeNode<T>>),
-    Leaf(T),
+    Nodes(Vec<Node<T>>),
+    Leaves(Vec<Leaf<T>>),
 }
 
 impl<T> RTree<T> {
     #[must_use]
-    pub fn new() -> Self {
-        todo!()
+    pub const fn new() -> Self {
+        Self { root: None }
     }
 
     #[deprecated]
-    pub fn bad_new(aabb: AABB, t: T) -> Self {
-        let nodes = vec![RTreeNode {
-            aabb: aabb.clone(),
-            entry: Entry::Leaf(t),
-        }];
-        Self {
-            root: Some(RTreeNode {
-                aabb,
-                entry: Entry::Nodes(nodes),
-            }),
-        }
-    }
-
-    #[deprecated]
+    #[must_use]
     pub fn aabbs(&self) -> Vec<&AABB> {
         let mut collector = vec![];
         if let Some(ref root) = self.root {
@@ -49,6 +41,7 @@ impl<T> RTree<T> {
         collector
     }
 
+    #[must_use]
     pub fn search(&self, aabb: &AABB) -> Vec<&T> {
         let mut collector = vec![];
         if let Some(ref root) = self.root {
@@ -57,84 +50,102 @@ impl<T> RTree<T> {
         collector
     }
 
-    pub fn insert(&mut self, aabb: AABB, t: T) {
-        match self.root {
-            Some(ref mut root) => {
-                let _result = root.insert(RTreeNode {
-                    aabb,
-                    entry: Entry::Leaf(t),
-                });
+    pub fn insert(&mut self, aabb: AABB, data: T) {
+        self.root = Some(if let Some(mut root) = self.root.take() {
+            if let InsertResult::Split(new_node) = root.insert(aabb, data) {
+                Node {
+                    aabb: root.aabb.merge(&new_node.aabb),
+                    entry: Entry::Nodes(vec![root, new_node]),
+                }
+            } else {
+                root
             }
-            None => {
-                self.root = Some(RTreeNode {
-                    aabb: aabb.clone(),
-                    entry: Entry::Nodes(vec![RTreeNode {
-                        aabb,
-                        entry: Entry::Leaf(t),
-                    }]),
-                });
+        } else {
+            Node {
+                aabb: aabb.clone(),
+                entry: Entry::Leaves(vec![Leaf { aabb, data }]),
             }
-        }
-        // if let Some(ref mut root) = self.root {
-        //     if let InsertResult::Split(_) = root.insert(RTreeNode {
-        //         aabb,
-        //         entry: Entry::Leaf(t),
-        //     }) {
-        //         todo!("handle root splitting")
-        //         // let new_root = RTreeNode {
-        //         //     aabb: root.aabb.merge(&n.aabb),
-        //         //     entry: Entry::Nodes(vec![n, *root]),
-        //         // };
-        //         // let old_root = std::mem::replace(root, new_root);
-        //         // let root_entry =
-        //         //     std::mem::replace(&mut root.entry, Entry::Nodes(vec![]));
-        //     }
-        // } else {
-        //     self.root = Some(RTreeNode {
-        //         aabb,
-        //         entry: Entry::Leaf(t),
-        //     });
-        // }
+        });
     }
 }
 
-impl<T> RTreeNode<T> {
+impl<T> Node<T> {
     fn search_into<'a>(&'a self, aabb: &AABB, collector: &mut Vec<&'a T>) {
-        if self.aabb.overlaps(aabb) {
-            match self.entry {
-                Entry::Leaf(ref t) => collector.push(t),
-                Entry::Nodes(ref nodes) => {
-                    for node in nodes {
+        match self.entry {
+            Entry::Nodes(ref nodes) => {
+                for node in nodes {
+                    if node.aabb.overlaps(aabb) {
                         node.search_into(aabb, collector);
                     }
                 }
             }
+            Entry::Leaves(ref leaves) => {
+                for leaf in leaves {
+                    if leaf.aabb.overlaps(aabb) {
+                        collector.push(&leaf.data);
+                    }
+                }
+            }
         }
     }
 
-    fn insert(&mut self, node: Self) -> InsertResult<T> {
+    fn insert(&mut self, aabb: AABB, data: T) -> InsertResult<T> {
         match self.entry {
-            Entry::Leaf(_) => unreachable!(),
             Entry::Nodes(ref mut nodes) => {
-                if let InsertResult::Split(n) = match nodes
-                    .iter_mut()
-                    .filter(|n| !n.entry.is_leaf())
-                    .map(|n| {
-                        let size = n.aabb.size();
-                        let merged_size = n.aabb.merge(&node.aabb).size();
-                        (n, merged_size - size)
-                    })
-                    .min_by(|(_, sd1), (_, sd2)| sd1.total_cmp(sd2))
+                if let InsertResult::Split(new_node) =
+                    nodes.find_best_match(&aabb).insert(aabb, data)
                 {
-                    Some((n, _)) => n.insert(node),
-                    None => InsertResult::Split(node),
-                } {
-                    nodes.push(n);
-                    if nodes.len() > NODE_MAX_CHINDREN {
-                        todo!("handle splitting");
+                    self.aabb = self.aabb.merge(&new_node.aabb);
+                    nodes.push(new_node);
+                    if nodes.len() > NODE_MAX_CHILDREN {
+                        // TODO: good split
+                        let nodes_half: Vec<Self> =
+                            nodes.drain(NODE_MAX_CHILDREN / 2..).collect();
+                        self.aabb = nodes
+                            .iter()
+                            .skip(1)
+                            .fold(nodes[0].aabb.clone(), |a, n| {
+                                a.merge(&n.aabb)
+                            });
+                        InsertResult::Split(Self {
+                            aabb: nodes_half
+                                .iter()
+                                .skip(1)
+                                .fold(nodes_half[0].aabb.clone(), |a, n| {
+                                    a.merge(&n.aabb)
+                                }),
+                            entry: Entry::Nodes(nodes_half),
+                        })
+                    } else {
+                        InsertResult::NoSplit
                     }
+                } else {
+                    InsertResult::NoSplit
                 }
-                InsertResult::NoSplit
+            }
+            Entry::Leaves(ref mut leaves) => {
+                self.aabb = self.aabb.merge(&aabb);
+                leaves.push(Leaf { aabb, data });
+                if leaves.len() > NODE_MAX_CHILDREN {
+                    // TODO: good split
+                    let leaves_half: Vec<Leaf<T>> =
+                        leaves.drain(NODE_MAX_CHILDREN / 2..).collect();
+                    self.aabb = leaves
+                        .iter()
+                        .skip(1)
+                        .fold(leaves[0].aabb.clone(), |a, n| a.merge(&n.aabb));
+                    InsertResult::Split(Self {
+                        aabb: leaves_half
+                            .iter()
+                            .skip(1)
+                            .fold(leaves_half[0].aabb.clone(), |a, n| {
+                                a.merge(&n.aabb)
+                            }),
+                        entry: Entry::Leaves(leaves_half),
+                    })
+                } else {
+                    InsertResult::NoSplit
+                }
             }
         }
     }
@@ -142,48 +153,69 @@ impl<T> RTreeNode<T> {
     #[deprecated]
     fn aabbs_into<'a>(&'a self, collector: &mut Vec<&'a AABB>) {
         collector.push(&self.aabb);
-        if let Entry::Nodes(ref nodes) = self.entry {
-            for n in nodes {
-                n.aabbs_into(collector);
+        match self.entry {
+            Entry::Nodes(ref nodes) => {
+                for n in nodes {
+                    n.aabbs_into(collector);
+                }
+            }
+            Entry::Leaves(ref leaves) => {
+                for l in leaves {
+                    collector.push(&l.aabb);
+                }
             }
         }
     }
 }
 
-impl<T> Entry<T> {
-    const fn is_leaf(&self) -> bool {
-        match self {
-            Self::Leaf(_) => true,
-            Self::Nodes(_) => false,
-        }
+trait FindBestMatch<T> {
+    fn find_best_match(&mut self, aabb: &AABB) -> &mut Node<T>;
+}
+
+impl<T> FindBestMatch<T> for Vec<Node<T>> {
+    fn find_best_match(&mut self, aabb: &AABB) -> &mut Node<T> {
+        self.iter_mut()
+            .map(|n| (n.aabb.merge(aabb).size() - n.aabb.size(), n))
+            .min_by(|(s1, _), (s2, _)| s1.total_cmp(s2))
+            .map(|(_, n)| n)
+            .unwrap()
     }
 }
 
 #[must_use]
 enum InsertResult<T> {
-    Split(RTreeNode<T>),
+    Split(Node<T>),
     NoSplit,
 }
 
 impl<T> Debug for RTree<T>
 where
-    RTreeNode<T>: Debug,
+    Node<T>: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "RTree {{ root: {:?} }}", self.root)
     }
 }
 
-impl<T> Debug for RTreeNode<T>
+impl<T> Debug for Node<T>
 where
     Entry<T>: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "RTreeNode {{ aabb: {:?}, entry: {:?} }}",
+            "Node {{ aabb: {:?}, entry: {:?} }}",
             self.aabb, self.entry
         )
+    }
+}
+
+impl<T> Debug for Leaf<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Leaf {{ aabb: {:?}, data: {:?} }}", self.aabb, self.data)
     }
 }
 
@@ -194,7 +226,7 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Nodes(v) => write!(f, "Nodes({v:?})"),
-            Self::Leaf(t) => write!(f, "Leaf({t:?})"),
+            Self::Leaves(v) => write!(f, "Leaf({v:?})"),
         }
     }
 }
