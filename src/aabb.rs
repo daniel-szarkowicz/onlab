@@ -102,4 +102,9 @@ impl AABB {
     pub const fn end(&self) -> &Point3<f64> {
         &self.end
     }
+
+    pub fn size(&self) -> f64 {
+        let s = self.end - self.start;
+        s.x * s.y * s.z
+    }
 }

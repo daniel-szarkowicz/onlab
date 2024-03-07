@@ -72,10 +72,7 @@ impl MainScene {
             surface_width: 1.0,
             surface_height: 1.0,
             paused: false,
-            simulation: Simulation {
-                epsilon: 1.0,
-                mu: 1.0,
-            },
+            simulation: Simulation::default(),
         })
     }
 
@@ -315,8 +312,23 @@ impl MainScene {
                     "color",
                 )
                 .unwrap();
-            for object in &self.objects {
-                let aabb = object.aabb();
+            // for object in &self.objects {
+            //     let aabb = object.aabb();
+            //     let size = aabb.end() - aabb.start();
+            //     let pos = aabb.start() + size / 2.0;
+            //     let model_m = Translation3::from(pos.cast::<f32>())
+            //         .to_homogeneous()
+            //         * Scale3::from(size.cast::<f32>()).to_homogeneous();
+
+            //     ctx.gl.uniform_matrix_4_f32_slice(
+            //         Some(&model),
+            //         false,
+            //         model_m.as_slice(),
+            //     );
+            //     ctx.gl.uniform_3_f32_slice(Some(&color), &[1.0, 0.0, 0.0]);
+            //     ctx.draw_mesh(&self.bounding_box_mesh);
+            // }
+            for aabb in self.simulation.rtree.aabbs() {
                 let size = aabb.end() - aabb.start();
                 let pos = aabb.start() + size / 2.0;
                 let model_m = Translation3::from(pos.cast::<f32>())

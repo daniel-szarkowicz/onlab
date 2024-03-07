@@ -12,12 +12,29 @@ use std::{collections::HashSet, vec::Vec};
 
 use nalgebra::{Point3, Vector3};
 
-use crate::{collider::Collider, object::Object};
+use crate::{aabb::AABB, collider::Collider, object::Object, rtree::RTree};
 
 #[derive(Debug)]
 pub struct Simulation {
     pub epsilon: f64,
     pub mu: f64,
+    pub rtree: RTree<usize>,
+}
+
+impl Default for Simulation {
+    fn default() -> Self {
+        Self {
+            epsilon: 1.0,
+            mu: 1.0,
+            rtree: RTree::bad_new(
+                AABB::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.0, 1.0, 1.0),
+                ),
+                0,
+            ),
+        }
+    }
 }
 
 impl Simulation {
