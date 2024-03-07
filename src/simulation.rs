@@ -56,8 +56,14 @@ impl Simulation {
             // );
             obj.update(delta);
         }
-        let contacts = self.check_contacts_rtree(objects);
-        // let contacts = self.check_contacts_1axis(objects);
+        let rtree_contacts = self.check_contacts_rtree(objects);
+        // let axis_contacts = self.check_contacts_1axis(objects);
+        // println!(
+        //     "rtree: {}, 1axis: {}",
+        //     rtree_contacts.len(),
+        //     axis_contacts.len()
+        // );
+        let contacts = rtree_contacts;
         for (i, j, contact) in &*contacts {
             assert!(i < j);
             let (s1, s2) = objects.split_at_mut(*j);
@@ -250,6 +256,7 @@ impl Simulation {
     }
 }
 
+#[derive(Debug)]
 struct Contact {
     points: (Point3<f64>, Point3<f64>),
     normal: Vector3<f64>,

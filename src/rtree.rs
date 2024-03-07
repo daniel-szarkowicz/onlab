@@ -96,10 +96,10 @@ impl<T> Node<T> {
     fn insert(&mut self, aabb: AABB, data: T) -> InsertResult<T> {
         match self.entry {
             Entry::Nodes(ref mut nodes) => {
+                self.aabb = self.aabb.merge(&aabb);
                 if let InsertResult::Split(new_node) =
                     nodes.find_best_match(&aabb).insert(aabb, data)
                 {
-                    self.aabb = self.aabb.merge(&new_node.aabb);
                     nodes.push(new_node);
                     if nodes.len() > NODE_MAX_CHILDREN {
                         let ((aabb1, nodes1), (aabb2, nodes2)) = split(nodes);
@@ -166,7 +166,7 @@ fn split<T: HasAABB>(nodes: &mut Vec<T>) -> ((AABB, Vec<T>), (AABB, Vec<T>)) {
             .max_by(|(_, _, s1), (_, _, s2)| s1.total_cmp(s2))
             .map(|(i, j, _)| (i, j))
             .unwrap();
-    // swap remove is faster, but we need to worry about ordering
+    // we need to worry about ordering
     assert!(seed1 < seed2);
     let mut nodes2 = vec![nodes.swap_remove(seed2)];
     let mut nodes1 = vec![nodes.swap_remove(seed1)];
