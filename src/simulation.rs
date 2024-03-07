@@ -49,22 +49,49 @@ impl Default for Simulation {
 
 impl Simulation {
     pub fn simulate(&mut self, objects: &mut [Object], delta: f64) {
-        let contacts = self.check_contacts(objects);
-        for (i, j, contact) in &*contacts {
-            assert!(i < j);
-            let (s1, s2) = objects.split_at_mut(*j);
-            self.resolve_contact(&mut s1[*i], &mut s2[0], contact);
-        }
-        for obj in objects {
+        for obj in objects.iter_mut() {
             // obj.apply_impulse(
             //     obj.position,
             //     Vector3::new(0.0, -10.0 * delta * obj.mass, 0.0),
             // );
             obj.update(delta);
         }
+        let contacts = self.check_contacts_rtree(objects);
+        // let contacts = self.check_contacts_1axis(objects);
+        for (i, j, contact) in &*contacts {
+            assert!(i < j);
+            let (s1, s2) = objects.split_at_mut(*j);
+            self.resolve_contact(&mut s1[*i], &mut s2[0], contact);
+        }
     }
 
-    fn check_contacts(
+    fn check_contacts_rtree(
+        &mut self,
+        objects: &[Object],
+    ) -> Box<[(usize, usize, Contact)]> {
+        self.rtree.clear();
+        for (i, obj) in objects.iter().enumerate() {
+            self.rtree.insert(obj.aabb().clone(), i);
+        }
+        let mut contacts = Vec::with_capacity(objects.len());
+        for (i, obj) in objects.iter().enumerate() {
+            for &j in self.rtree.search(obj.aabb()) {
+                // i > j was already checked
+                // i == j should not be checked
+                if i < j {
+                    if let Some(contact) =
+                        self.check_contact(&objects[i], &objects[j])
+                    {
+                        contacts.push((i, j, contact));
+                    }
+                }
+            }
+        }
+        contacts.into()
+    }
+
+    #[allow(dead_code)]
+    fn check_contacts_1axis(
         &mut self,
         objects: &[Object],
     ) -> Box<[(usize, usize, Contact)]> {
@@ -137,7 +164,7 @@ impl Simulation {
     }
 
     #[allow(clippy::unused_self)]
-    fn check_contact(&mut self, o1: &Object, o2: &Object) -> Option<Contact> {
+    fn check_contact(&self, o1: &Object, o2: &Object) -> Option<Contact> {
         match (o1.collider, o2.collider) {
             (Collider::Sphere(r1), Collider::Sphere(r2)) => {
                 let center_distance = o1.position - o2.position;

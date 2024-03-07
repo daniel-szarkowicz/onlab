@@ -31,6 +31,10 @@ impl<T> RTree<T> {
         Self { root: None }
     }
 
+    pub fn clear(&mut self) {
+        self.root = None;
+    }
+
     #[deprecated]
     #[must_use]
     pub fn aabbs(&self) -> Vec<&AABB> {
