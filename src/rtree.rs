@@ -98,23 +98,12 @@ impl<T> Node<T> {
                     self.aabb = self.aabb.merge(&new_node.aabb);
                     nodes.push(new_node);
                     if nodes.len() > NODE_MAX_CHILDREN {
-                        // TODO: good split
-                        let nodes_half: Vec<Self> =
-                            nodes.drain(NODE_MAX_CHILDREN / 2..).collect();
-                        self.aabb = nodes
-                            .iter()
-                            .skip(1)
-                            .fold(nodes[0].aabb.clone(), |a, n| {
-                                a.merge(&n.aabb)
-                            });
+                        let ((aabb1, nodes1), (aabb2, nodes2)) = split(nodes);
+                        self.aabb = aabb1;
+                        *nodes = nodes1;
                         InsertResult::Split(Self {
-                            aabb: nodes_half
-                                .iter()
-                                .skip(1)
-                                .fold(nodes_half[0].aabb.clone(), |a, n| {
-                                    a.merge(&n.aabb)
-                                }),
-                            entry: Entry::Nodes(nodes_half),
+                            aabb: aabb2,
+                            entry: Entry::Nodes(nodes2),
                         })
                     } else {
                         InsertResult::NoSplit
@@ -127,21 +116,12 @@ impl<T> Node<T> {
                 self.aabb = self.aabb.merge(&aabb);
                 leaves.push(Leaf { aabb, data });
                 if leaves.len() > NODE_MAX_CHILDREN {
-                    // TODO: good split
-                    let leaves_half: Vec<Leaf<T>> =
-                        leaves.drain(NODE_MAX_CHILDREN / 2..).collect();
-                    self.aabb = leaves
-                        .iter()
-                        .skip(1)
-                        .fold(leaves[0].aabb.clone(), |a, n| a.merge(&n.aabb));
+                    let ((aabb1, leaves1), (aabb2, leaves2)) = split(leaves);
+                    self.aabb = aabb1;
+                    *leaves = leaves1;
                     InsertResult::Split(Self {
-                        aabb: leaves_half
-                            .iter()
-                            .skip(1)
-                            .fold(leaves_half[0].aabb.clone(), |a, n| {
-                                a.merge(&n.aabb)
-                            }),
-                        entry: Entry::Leaves(leaves_half),
+                        aabb: aabb2,
+                        entry: Entry::Leaves(leaves2),
                     })
                 } else {
                     InsertResult::NoSplit
@@ -165,6 +145,58 @@ impl<T> Node<T> {
                 }
             }
         }
+    }
+}
+
+/// Drains the nodes into two vectors using a heuristic to produce smaller AABBs
+fn split<T: HasAABB>(nodes: &mut Vec<T>) -> ((AABB, Vec<T>), (AABB, Vec<T>)) {
+    let (seed1, seed2) =
+        nodes
+            .iter()
+            .enumerate()
+            .flat_map(|(i, n1)| {
+                nodes.iter().enumerate().skip(i + 1).map(move |(j, n2)| {
+                    (i, j, n1.aabb().merge(n2.aabb()).size())
+                })
+            })
+            .max_by(|(_, _, s1), (_, _, s2)| s1.total_cmp(s2))
+            .map(|(i, j, _)| (i, j))
+            .unwrap();
+    // swap remove is faster, but we need to worry about ordering
+    assert!(seed1 < seed2);
+    let mut nodes2 = vec![nodes.swap_remove(seed2)];
+    let mut nodes1 = vec![nodes.swap_remove(seed1)];
+    let mut aabb1 = nodes1[0].aabb().clone();
+    let mut aabb2 = nodes2[0].aabb().clone();
+    for node in nodes.drain(..) {
+        let new_aabb1 = aabb1.merge(node.aabb());
+        let new_aabb2 = aabb2.merge(node.aabb());
+        let diff1 = new_aabb1.size() - aabb1.size();
+        let diff2 = new_aabb2.size() - aabb2.size();
+        if diff1 < diff2 {
+            nodes1.push(node);
+            aabb1 = new_aabb1;
+        } else {
+            nodes2.push(node);
+            aabb2 = new_aabb2;
+        }
+    }
+    ((aabb1, nodes1), (aabb2, nodes2))
+}
+
+trait HasAABB {
+    fn aabb(&self) -> &AABB;
+}
+
+impl<T> HasAABB for Node<T> {
+    fn aabb(&self) -> &AABB {
+        &self.aabb
+    }
+}
+
+impl<T> HasAABB for Leaf<T> {
+    fn aabb(&self) -> &AABB {
+        &self.aabb
     }
 }
 

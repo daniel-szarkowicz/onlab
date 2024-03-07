@@ -340,7 +340,7 @@ impl MainScene {
                     false,
                     model_m.as_slice(),
                 );
-                ctx.gl.uniform_3_f32_slice(Some(&color), &[1.0, 0.0, 0.0]);
+                ctx.gl.uniform_3_f32_slice(Some(&color), &[0.0, 0.0, 0.0]);
                 ctx.draw_mesh(&self.bounding_box_mesh);
             }
         }
