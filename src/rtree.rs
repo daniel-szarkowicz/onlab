@@ -37,10 +37,10 @@ impl<T> RTree<T> {
 
     #[deprecated]
     #[must_use]
-    pub fn aabbs(&self) -> Vec<&AABB> {
+    pub fn aabbs(&self) -> Vec<(usize, &AABB)> {
         let mut collector = vec![];
         if let Some(ref root) = self.root {
-            root.aabbs_into(&mut collector);
+            root.aabbs_into(0, &mut collector);
         }
         collector
     }
@@ -148,17 +148,21 @@ impl<T> Node<T> {
     }
 
     #[deprecated]
-    fn aabbs_into<'a>(&'a self, collector: &mut Vec<&'a AABB>) {
-        collector.push(&self.aabb);
+    fn aabbs_into<'a>(
+        &'a self,
+        depth: usize,
+        collector: &mut Vec<(usize, &'a AABB)>,
+    ) {
+        collector.push((depth, &self.aabb));
         match self.entry {
             Entry::Nodes(ref nodes) => {
                 for n in nodes {
-                    n.aabbs_into(collector);
+                    n.aabbs_into(depth + 1, collector);
                 }
             }
             Entry::Leaves(ref leaves) => {
                 for l in leaves {
-                    collector.push(&l.aabb);
+                    collector.push((depth + 1, &l.aabb));
                 }
             }
         }

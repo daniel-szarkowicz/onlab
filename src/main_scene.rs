@@ -36,6 +36,7 @@ pub struct MainScene {
     surface_height: f32,
     paused: bool,
     simulation: Simulation,
+    max_depth: usize,
 }
 
 impl MainScene {
@@ -73,6 +74,7 @@ impl MainScene {
             surface_height: 1.0,
             paused: false,
             simulation: Simulation::default(),
+            max_depth: 5,
         })
     }
 
@@ -328,20 +330,30 @@ impl MainScene {
             //     ctx.gl.uniform_3_f32_slice(Some(&color), &[1.0, 0.0, 0.0]);
             //     ctx.draw_mesh(&self.bounding_box_mesh);
             // }
-            for aabb in self.simulation.rtree.aabbs() {
-                let size = aabb.end() - aabb.start();
-                let pos = aabb.start() + size / 2.0;
-                let model_m = Translation3::from(pos.cast::<f32>())
-                    .to_homogeneous()
-                    * Scale3::from(size.cast::<f32>()).to_homogeneous();
+            for (depth, aabb) in self.simulation.rtree.aabbs() {
+                if depth < self.max_depth {
+                    ctx.gl.line_width((self.max_depth - depth) as f32 + 1.0);
+                    let size = aabb.end() - aabb.start();
+                    let pos = aabb.start() + size / 2.0;
+                    let model_m = Translation3::from(pos.cast::<f32>())
+                        .to_homogeneous()
+                        * Scale3::from(size.cast::<f32>()).to_homogeneous();
 
-                ctx.gl.uniform_matrix_4_f32_slice(
-                    Some(&model),
-                    false,
-                    model_m.as_slice(),
-                );
-                ctx.gl.uniform_3_f32_slice(Some(&color), &[0.0, 0.0, 0.0]);
-                ctx.draw_mesh(&self.bounding_box_mesh);
+                    ctx.gl.uniform_matrix_4_f32_slice(
+                        Some(&model),
+                        false,
+                        model_m.as_slice(),
+                    );
+                    ctx.gl.uniform_3_f32_slice(
+                        Some(&color),
+                        &[
+                            (depth % 2) as f32 * 0.75,
+                            (depth / 2 % 2) as f32 * 0.75,
+                            (depth / 4 % 2) as f32 * 0.75,
+                        ],
+                    );
+                    ctx.draw_mesh(&self.bounding_box_mesh);
+                }
             }
         }
     }
@@ -409,6 +421,12 @@ impl MainScene {
         }
         ui.checkbox(&mut self.draw_phong, "Draw objects");
         ui.checkbox(&mut self.draw_debug, "Draw bounds");
+        ui.add(
+            DragValue::new(&mut self.max_depth)
+                .prefix("Max depth: ")
+                .clamp_range(1..=10)
+                .speed(0.1),
+        );
         ui.add(
             DragValue::new(&mut self.simulation.epsilon)
                 .prefix("Collision energy multiplier: ")
