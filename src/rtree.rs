@@ -57,17 +57,26 @@ impl<T> RTree<T> {
     pub fn insert(&mut self, aabb: AABB, data: T) {
         self.root = Some(if let Some(mut root) = self.root.take() {
             if let InsertResult::Split(new_node) = root.insert(aabb, data) {
+                let mut vec = Vec::with_capacity(NODE_MAX_CHILDREN + 1);
+                let new_aabb = root.aabb.merge(&new_node.aabb);
+                vec.push(root);
+                vec.push(new_node);
                 Node {
-                    aabb: root.aabb.merge(&new_node.aabb),
-                    entry: Entry::Nodes(vec![root, new_node]),
+                    aabb: new_aabb,
+                    entry: Entry::Nodes(vec),
                 }
             } else {
                 root
             }
         } else {
-            Node {
+            let mut vec = Vec::with_capacity(NODE_MAX_CHILDREN + 1);
+            vec.push(Leaf {
                 aabb: aabb.clone(),
-                entry: Entry::Leaves(vec![Leaf { aabb, data }]),
+                data,
+            });
+            Node {
+                aabb,
+                entry: Entry::Leaves(vec),
             }
         });
     }
@@ -75,11 +84,13 @@ impl<T> RTree<T> {
 
 impl<T> Node<T> {
     fn search_into<'a>(&'a self, aabb: &AABB, collector: &mut Vec<&'a T>) {
+        // let mut descends = 0;
         match self.entry {
             Entry::Nodes(ref nodes) => {
                 for node in nodes {
                     if node.aabb.overlaps(aabb) {
                         node.search_into(aabb, collector);
+                        // descends += 1;
                     }
                 }
             }
@@ -87,10 +98,12 @@ impl<T> Node<T> {
                 for leaf in leaves {
                     if leaf.aabb.overlaps(aabb) {
                         collector.push(&leaf.data);
+                        // descends += 1;
                     }
                 }
             }
         }
+        // println!("descends: {descends}");
     }
 
     fn insert(&mut self, aabb: AABB, data: T) -> InsertResult<T> {
@@ -166,10 +179,12 @@ fn split<T: HasAABB>(nodes: &mut Vec<T>) -> ((AABB, Vec<T>), (AABB, Vec<T>)) {
             .max_by(|(_, _, s1), (_, _, s2)| s1.total_cmp(s2))
             .map(|(i, j, _)| (i, j))
             .unwrap();
+    let mut nodes1 = Vec::with_capacity(NODE_MAX_CHILDREN + 1);
+    let mut nodes2 = Vec::with_capacity(NODE_MAX_CHILDREN + 1);
     // we need to worry about ordering
     assert!(seed1 < seed2);
-    let mut nodes2 = vec![nodes.swap_remove(seed2)];
-    let mut nodes1 = vec![nodes.swap_remove(seed1)];
+    nodes2.push(nodes.swap_remove(seed2));
+    nodes1.push(nodes.swap_remove(seed1));
     let mut aabb1 = nodes1[0].aabb().clone();
     let mut aabb2 = nodes2[0].aabb().clone();
     for node in nodes.drain(..) {
