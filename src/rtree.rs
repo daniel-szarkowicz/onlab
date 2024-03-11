@@ -115,7 +115,8 @@ impl<T> Node<T> {
                 {
                     nodes.push(new_node);
                     if nodes.len() > NODE_MAX_CHILDREN {
-                        let ((aabb1, nodes1), (aabb2, nodes2)) = split(nodes);
+                        let ((aabb1, nodes1), (aabb2, nodes2)) =
+                            quadratic_split(nodes);
                         self.aabb = aabb1;
                         *nodes = nodes1;
                         InsertResult::Split(Self {
@@ -169,6 +170,7 @@ impl<T> Node<T> {
     }
 }
 
+#[allow(dead_code)]
 /// Drains the nodes into two vectors using a heuristic to produce smaller AABBs
 fn split<T: HasAABB>(nodes: &mut Vec<T>) -> ((AABB, Vec<T>), (AABB, Vec<T>)) {
     let (seed1, seed2) =
@@ -192,6 +194,69 @@ fn split<T: HasAABB>(nodes: &mut Vec<T>) -> ((AABB, Vec<T>), (AABB, Vec<T>)) {
     let mut aabb1 = nodes1[0].aabb().clone();
     let mut aabb2 = nodes2[0].aabb().clone();
     for node in nodes.drain(..) {
+        let new_aabb1 = aabb1.merge(node.aabb());
+        let new_aabb2 = aabb2.merge(node.aabb());
+        let diff1 = new_aabb1.size() - aabb1.size();
+        let diff2 = new_aabb2.size() - aabb2.size();
+        if diff1 < diff2 {
+            nodes1.push(node);
+            aabb1 = new_aabb1;
+        } else {
+            nodes2.push(node);
+            aabb2 = new_aabb2;
+        }
+    }
+    ((aabb1, nodes1), (aabb2, nodes2))
+}
+
+#[allow(dead_code)]
+fn quadratic_split<T: HasAABB>(
+    nodes: &mut Vec<T>,
+) -> ((AABB, Vec<T>), (AABB, Vec<T>)) {
+    // PickSeeds for quadratic split as described in
+    // https://infolab.usc.edu/csci599/Fall2001/paper/rstar-tree.pdf
+    let (seed1, seed2) = nodes
+        .iter()
+        .enumerate()
+        .flat_map(|(i, n1)| {
+            nodes.iter().enumerate().skip(i + 1).map(move |(j, n2)| {
+                (
+                    i,
+                    j,
+                    n1.aabb().merge(n2.aabb()).size()
+                        - n1.aabb().size()
+                        - n2.aabb().size(),
+                )
+            })
+        })
+        .max_by(|(_, _, s1), (_, _, s2)| s1.total_cmp(s2))
+        .map(|(i, j, _)| (i, j))
+        .unwrap();
+    let mut nodes1 = Vec::with_capacity(NODE_MAX_CHILDREN + 1);
+    let mut nodes2 = Vec::with_capacity(NODE_MAX_CHILDREN + 1);
+    // we need to worry about ordering
+    assert!(seed1 < seed2);
+    nodes2.push(nodes.swap_remove(seed2));
+    nodes1.push(nodes.swap_remove(seed1));
+    let mut aabb1 = nodes1[0].aabb().clone();
+    let mut aabb2 = nodes2[0].aabb().clone();
+    while !nodes.is_empty() {
+        // PickNext
+        let next = nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| {
+                (
+                    i,
+                    (aabb1.merge(n.aabb()).size()
+                        - aabb2.merge(n.aabb()).size())
+                    .abs(),
+                )
+            })
+            .max_by(|(_, diff1), (_, diff2)| diff1.total_cmp(diff2))
+            .map(|(i, _)| i)
+            .expect("nodes cannot be empty");
+        let node = nodes.swap_remove(next);
         let new_aabb1 = aabb1.merge(node.aabb());
         let new_aabb2 = aabb2.merge(node.aabb());
         let diff1 = new_aabb1.size() - aabb1.size();
