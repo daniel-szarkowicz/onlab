@@ -20,11 +20,14 @@ use crate::vertex::PVertex;
 use crate::{context::Context, scene::Scene, vertex::PNVertex};
 
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct MainScene {
     objects: Vec<Object>,
+    depth_pass_program: ShaderProgram<PNVertex>,
     phong_shader_program: ShaderProgram<PNVertex>,
     debug_shader_program: ShaderProgram<PVertex>,
     hud_shader_program: ShaderProgram<PVertex>,
+    depth_pass: bool,
     draw_phong: bool,
     draw_debug: bool,
     camera: FirstPersonCamera,
@@ -46,6 +49,8 @@ impl MainScene {
         let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, true)?);
         let bounding_box_mesh = meshes::bounding_box_mesh(ctx)?;
         let rectangle_mesh = meshes::rectangle_mesh(ctx)?;
+        let depth_pass_program =
+            ShaderProgram::new(ctx, "src/simple-vs.glsl", "src/empty-fs.glsl")?;
         let phong_shader_program =
             ShaderProgram::new(ctx, "src/phong-vs.glsl", "src/phong-fs.glsl")?;
         let debug_shader_program = ShaderProgram::new(
@@ -60,9 +65,11 @@ impl MainScene {
         )?;
         Ok(Self {
             objects,
+            depth_pass_program,
             phong_shader_program,
             debug_shader_program,
             hud_shader_program,
+            depth_pass: true,
             draw_phong: true,
             draw_debug: false,
             camera: FirstPersonCamera::default(),
@@ -228,33 +235,19 @@ impl MainScene {
         });
     }
 
-    fn draw_phong(&self, ctx: &mut Context) {
+    fn depth_pass(&self, ctx: &mut Context) {
         unsafe {
-            ctx.use_shader_program(&self.phong_shader_program);
+            ctx.use_shader_program(&self.depth_pass_program);
             let model = ctx
                 .gl
-                .get_uniform_location(
-                    self.phong_shader_program.program,
-                    "model",
-                )
-                .unwrap();
-            let model_inv = ctx
-                .gl
-                .get_uniform_location(
-                    self.phong_shader_program.program,
-                    "model_inv",
-                )
+                .get_uniform_location(self.depth_pass_program.program, "model")
                 .unwrap();
             let view_proj = ctx
                 .gl
                 .get_uniform_location(
-                    self.phong_shader_program.program,
+                    self.depth_pass_program.program,
                     "view_proj",
                 )
-                .unwrap();
-            let w_eye = ctx
-                .gl
-                .get_uniform_location(self.phong_shader_program.program, "wEye")
                 .unwrap();
             let view_proj_m = self.camera.view_proj();
             ctx.gl.uniform_matrix_4_f32_slice(
@@ -262,20 +255,57 @@ impl MainScene {
                 false,
                 view_proj_m.as_slice(),
             );
+            for object in &self.objects {
+                let model_m = object.model();
+                ctx.gl.uniform_matrix_4_f32_slice(
+                    Some(&model),
+                    false,
+                    model_m.as_slice(),
+                );
+                ctx.draw_mesh(&object.mesh);
+            }
+        }
+    }
+
+    fn draw_phong(&self, ctx: &mut Context) {
+        unsafe {
+            ctx.use_shader_program(&self.phong_shader_program);
+            let model = ctx.gl.get_uniform_location(
+                self.phong_shader_program.program,
+                "model",
+            );
+            let model_inv = ctx.gl.get_uniform_location(
+                self.phong_shader_program.program,
+                "model_inv",
+            );
+            let view_proj = ctx.gl.get_uniform_location(
+                self.phong_shader_program.program,
+                "view_proj",
+            );
+            let w_eye = ctx.gl.get_uniform_location(
+                self.phong_shader_program.program,
+                "wEye",
+            );
+            let view_proj_m = self.camera.view_proj();
+            ctx.gl.uniform_matrix_4_f32_slice(
+                view_proj.as_ref(),
+                false,
+                view_proj_m.as_slice(),
+            );
             ctx.gl.uniform_3_f32_slice(
-                Some(&w_eye),
+                w_eye.as_ref(),
                 self.camera.position().coords.as_slice(),
             );
             for object in &self.objects {
                 let model_m = object.model();
                 let model_inv_m = model_m.try_inverse().unwrap();
                 ctx.gl.uniform_matrix_4_f32_slice(
-                    Some(&model),
+                    model.as_ref(),
                     false,
                     model_m.as_slice(),
                 );
                 ctx.gl.uniform_matrix_4_f32_slice(
-                    Some(&model_inv),
+                    model_inv.as_ref(),
                     false,
                     model_inv_m.as_slice(),
                 );
@@ -419,6 +449,7 @@ impl MainScene {
         if ui.button("Rotating board").clicked() {
             self.preset_rotating_board();
         }
+        ui.checkbox(&mut self.depth_pass, "Depth pass");
         ui.checkbox(&mut self.draw_phong, "Draw objects");
         ui.checkbox(&mut self.draw_debug, "Draw bounds");
         ui.add(
@@ -494,9 +525,17 @@ impl Scene for MainScene {
             ctx.gl
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             ctx.gl.enable(glow::DEPTH_TEST);
+            ctx.gl.disable(glow::BLEND);
+            if self.depth_pass {
+                self.depth_pass(ctx);
+                ctx.gl.depth_func(glow::LEQUAL);
+            } else {
+                ctx.gl.depth_func(glow::LESS);
+            }
             if self.draw_phong {
                 self.draw_phong(ctx);
             }
+            ctx.gl.depth_func(glow::LESS);
             if self.draw_debug {
                 self.draw_debug(ctx);
             }

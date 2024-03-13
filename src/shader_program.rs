@@ -56,7 +56,9 @@ impl<V: Vertex> ShaderProgram<V> {
                     gl.get_program_info_log(program)
                 )))?;
             }
-            V::validate_layout(gl, program)?;
+            if let Err(e) = V::validate_layout(gl, program) {
+                eprintln!("Shader warning: {e}");
+            };
             program
         };
         Ok(Self {
