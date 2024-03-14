@@ -2,9 +2,12 @@ use std::rc::Rc;
 
 use anyhow::Result;
 use egui::{DragValue, Ui, Window};
-use glow::HasContext;
+use glow::{HasContext, NativeFramebuffer, NativeTexture};
 use glutin::surface::GlSurface;
-use nalgebra::{Point3, Rotation3, Scale3, Translation3, Vector3, Vector4};
+use nalgebra::{
+    Matrix4, Orthographic3, Point3, Rotation3, Scale3, Translation3, Vector3,
+    Vector4,
+};
 use rand::Rng;
 use winit::event::{ElementState, Event, WindowEvent};
 use winit::window::CursorGrabMode;
@@ -12,12 +15,12 @@ use winit::window::CursorGrabMode;
 use crate::camera::FirstPersonCamera;
 use crate::collider::Collider;
 use crate::mesh::{DrawMesh, Mesh};
-use crate::meshes;
 use crate::object::Object;
 use crate::shader_program::{ShaderProgram, UseShaderProgram};
 use crate::simulation::Simulation;
 use crate::vertex::PVertex;
 use crate::{context::Context, scene::Scene, vertex::PNVertex};
+use crate::{meshes, shadow_util};
 
 #[derive(Debug)]
 #[allow(clippy::struct_excessive_bools)]
@@ -41,13 +44,15 @@ pub struct MainScene {
     simulation: Simulation,
     max_depth: usize,
     light_pos: Vector4<f32>,
+    shadow_buffer: NativeFramebuffer,
+    shadow_map: NativeTexture,
 }
 
 impl MainScene {
     pub fn new(ctx: &Context) -> Result<Self> {
         let objects = vec![];
         let box_mesh = Rc::new(meshes::box_mesh(ctx)?);
-        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, true)?);
+        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, false)?);
         let bounding_box_mesh = meshes::bounding_box_mesh(ctx)?;
         let rectangle_mesh = meshes::rectangle_mesh(ctx)?;
         let depth_pass_program =
@@ -64,6 +69,8 @@ impl MainScene {
             "src/simple-vs.glsl",
             "src/simple_color-fs.glsl",
         )?;
+        let (shadow_buffer, shadow_map) =
+            shadow_util::create_buffer(ctx.gl.as_ref());
         Ok(Self {
             objects,
             depth_pass_program,
@@ -84,6 +91,8 @@ impl MainScene {
             simulation: Simulation::default(),
             max_depth: 5,
             light_pos: Vector4::new(1.0, 1.0, -1.0, 0.0),
+            shadow_buffer,
+            shadow_map,
         })
     }
 
@@ -269,7 +278,54 @@ impl MainScene {
         }
     }
 
-    fn draw_phong(&self, ctx: &mut Context) {
+    fn draw_shadow(&self, ctx: &Context, light_space_matrix: &Matrix4<f32>) {
+        unsafe {
+            ctx.gl.viewport(
+                0,
+                0,
+                shadow_util::SHADOW_WIDTH,
+                shadow_util::SHADOW_HEIGHT,
+            );
+            ctx.gl
+                .bind_framebuffer(glow::FRAMEBUFFER, Some(self.shadow_buffer));
+            ctx.gl.clear(glow::DEPTH_BUFFER_BIT);
+            ctx.use_shader_program(&self.depth_pass_program);
+            let model = ctx
+                .gl
+                .get_uniform_location(self.depth_pass_program.program, "model")
+                .unwrap();
+            let view_proj = ctx
+                .gl
+                .get_uniform_location(
+                    self.depth_pass_program.program,
+                    "view_proj",
+                )
+                .unwrap();
+            ctx.gl.uniform_matrix_4_f32_slice(
+                Some(&view_proj),
+                false,
+                light_space_matrix.as_slice(),
+            );
+            for object in &self.objects {
+                let model_m = object.model();
+                ctx.gl.uniform_matrix_4_f32_slice(
+                    Some(&model),
+                    false,
+                    model_m.as_slice(),
+                );
+                ctx.draw_mesh(&object.mesh);
+            }
+            ctx.gl.bind_framebuffer(glow::FRAMEBUFFER, None);
+            ctx.gl.viewport(
+                0,
+                0,
+                self.surface_width as i32,
+                self.surface_height as i32,
+            );
+        }
+    }
+
+    fn draw_phong(&self, ctx: &mut Context, light_space_matrix: &Matrix4<f32>) {
         unsafe {
             ctx.use_shader_program(&self.phong_shader_program);
             let model = ctx.gl.get_uniform_location(
@@ -291,6 +347,21 @@ impl MainScene {
             let w_li_pos = ctx.gl.get_uniform_location(
                 self.phong_shader_program.program,
                 "wLiPos",
+            );
+            let light_space = ctx.gl.get_uniform_location(
+                self.phong_shader_program.program,
+                "light_space_matrix",
+            );
+            let shadow_map = ctx.gl.get_uniform_location(
+                self.phong_shader_program.program,
+                "shadow_map",
+            );
+            ctx.gl.uniform_1_i32(shadow_map.as_ref(), 0);
+            ctx.gl.bind_texture(glow::TEXTURE_2D, Some(self.shadow_map));
+            ctx.gl.uniform_matrix_4_f32_slice(
+                light_space.as_ref(),
+                false,
+                light_space_matrix.as_slice(),
             );
             let view_proj_m = self.camera.view_proj();
             ctx.gl.uniform_matrix_4_f32_slice(
@@ -548,8 +619,22 @@ impl Scene for MainScene {
             } else {
                 ctx.gl.depth_func(glow::LESS);
             }
+            let light_proj =
+                Orthographic3::new(-50.0, 50.0, -50.0, 50.0, 1.0, 500.0)
+                    .to_homogeneous();
+            let light_dir = (-self.light_pos.xyz()).normalize();
+            let light_look_at =
+                self.camera.position() + 50.0 * self.camera.look_direction();
+            let light_position = light_look_at - 50.0 * light_dir;
+            let light_view = Matrix4::look_at_rh(
+                &light_position,
+                &light_look_at,
+                &Vector3::new(0.0, 1.0, 0.0),
+            );
+            let light_space_matrix = light_proj * light_view;
+            self.draw_shadow(ctx, &light_space_matrix);
             if self.draw_phong {
-                self.draw_phong(ctx);
+                self.draw_phong(ctx, &light_space_matrix);
             }
             ctx.gl.depth_func(glow::LESS);
             if self.draw_debug {

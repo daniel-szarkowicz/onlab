@@ -10,5 +10,6 @@ pub mod ray;
 pub mod rtree;
 pub mod scene;
 pub mod shader_program;
+pub mod shadow_util;
 pub mod simulation;
 pub mod vertex;
