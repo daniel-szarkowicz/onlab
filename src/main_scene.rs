@@ -4,7 +4,7 @@ use anyhow::Result;
 use egui::{DragValue, Ui, Window};
 use glow::HasContext;
 use glutin::surface::GlSurface;
-use nalgebra::{Point3, Rotation3, Scale3, Translation3, Vector3};
+use nalgebra::{Point3, Rotation3, Scale3, Translation3, Vector3, Vector4};
 use rand::Rng;
 use winit::event::{ElementState, Event, WindowEvent};
 use winit::window::CursorGrabMode;
@@ -40,6 +40,7 @@ pub struct MainScene {
     paused: bool,
     simulation: Simulation,
     max_depth: usize,
+    light_pos: Vector4<f32>,
 }
 
 impl MainScene {
@@ -82,6 +83,7 @@ impl MainScene {
             paused: false,
             simulation: Simulation::default(),
             max_depth: 5,
+            light_pos: Vector4::new(1.0, 1.0, -1.0, 0.0),
         })
     }
 
@@ -286,6 +288,10 @@ impl MainScene {
                 self.phong_shader_program.program,
                 "wEye",
             );
+            let w_li_pos = ctx.gl.get_uniform_location(
+                self.phong_shader_program.program,
+                "wLiPos",
+            );
             let view_proj_m = self.camera.view_proj();
             ctx.gl.uniform_matrix_4_f32_slice(
                 view_proj.as_ref(),
@@ -295,6 +301,10 @@ impl MainScene {
             ctx.gl.uniform_3_f32_slice(
                 w_eye.as_ref(),
                 self.camera.position().coords.as_slice(),
+            );
+            ctx.gl.uniform_4_f32_slice(
+                w_li_pos.as_ref(),
+                self.light_pos.as_slice(),
             );
             for object in &self.objects {
                 let model_m = object.model();
@@ -464,6 +474,12 @@ impl MainScene {
                 .clamp_range(-1.0..=2.0)
                 .speed(0.005),
         );
+        if ui.button("Set light direction").clicked() {
+            self.light_pos = -self.camera.look_direction().push(0.0);
+        }
+        if ui.button("Set light position").clicked() {
+            self.light_pos = self.camera.position().coords.push(1.0);
+        }
         ui.add(
             DragValue::new(&mut self.simulation.mu)
                 .prefix("Coefficient of friction: ")
