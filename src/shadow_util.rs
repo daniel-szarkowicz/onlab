@@ -33,12 +33,18 @@ pub fn create_buffer(gl: &glow::Context) -> (NativeFramebuffer, NativeTexture) {
         gl.tex_parameter_i32(
             glow::TEXTURE_2D,
             glow::TEXTURE_WRAP_S,
-            glow::REPEAT as i32,
+            glow::CLAMP_TO_BORDER as i32,
         );
         gl.tex_parameter_i32(
             glow::TEXTURE_2D,
             glow::TEXTURE_WRAP_T,
-            glow::REPEAT as i32,
+            glow::CLAMP_TO_BORDER as i32,
+        );
+        let border_color = [1.0, 1.0, 1.0, 1.0];
+        gl.tex_parameter_f32_slice(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_BORDER_COLOR,
+            &border_color,
         );
         gl.bind_framebuffer(glow::FRAMEBUFFER, Some(depth_framebuffer));
         gl.framebuffer_texture_2d(
