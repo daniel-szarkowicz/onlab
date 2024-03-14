@@ -288,6 +288,7 @@ impl MainScene {
             );
             ctx.gl
                 .bind_framebuffer(glow::FRAMEBUFFER, Some(self.shadow_buffer));
+            ctx.gl.cull_face(glow::FRONT);
             ctx.gl.clear(glow::DEPTH_BUFFER_BIT);
             ctx.use_shader_program(&self.depth_pass_program);
             let model = ctx
@@ -315,6 +316,7 @@ impl MainScene {
                 );
                 ctx.draw_mesh(&object.mesh);
             }
+            ctx.gl.cull_face(glow::BACK);
             ctx.gl.bind_framebuffer(glow::FRAMEBUFFER, None);
             ctx.gl.viewport(
                 0,
