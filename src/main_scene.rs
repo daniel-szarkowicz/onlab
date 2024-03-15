@@ -246,6 +246,18 @@ impl MainScene {
         });
     }
 
+    fn visualize_current_frustum(&mut self) {
+        let camera_bounds = self.camera.small_view_frustum_points();
+        self.objects.clear();
+        for p in camera_bounds {
+            self.objects.push(Object {
+                position: Point3::from(p.cast()),
+                mesh_scale: Vector3::new(1.0, 1.0, 1.0),
+                ..Object::new(&self.sphere_mesh, Collider::Sphere(1.0), 1.0)
+            });
+        }
+    }
+
     fn depth_pass(&self, ctx: &mut Context) {
         unsafe {
             ctx.use_shader_program(&self.depth_pass_program);
@@ -532,6 +544,9 @@ impl MainScene {
         if ui.button("Rotating board").clicked() {
             self.preset_rotating_board();
         }
+        if ui.button("Visualize current frustum").clicked() {
+            self.visualize_current_frustum();
+        }
         ui.checkbox(&mut self.depth_pass, "Depth pass");
         ui.checkbox(&mut self.draw_phong, "Draw objects");
         ui.checkbox(&mut self.draw_debug, "Draw bounds");
@@ -592,6 +607,47 @@ impl MainScene {
             total_directional_energy + total_rotational_energy
         ));
     }
+
+    fn light_matrix(&self) -> Matrix4<f32> {
+        let camera_bounds = self.camera.small_view_frustum_points();
+        assert!(self.light_pos.w.abs() < f32::EPSILON);
+        let light_dir = (-self.light_pos.xyz()).normalize();
+        let light_up = Vector3::new(-light_dir.y, light_dir.x, light_dir.z);
+        let light_left = light_dir.cross(&light_up);
+        let (x_max, x_min) = camera_bounds
+            .iter()
+            .map(|v| light_left.dot(&v.coords))
+            .fold((f32::MIN, f32::MAX), |(max, min), elem| {
+                (max.max(elem), min.min(elem))
+            });
+        let (y_max, y_min) = camera_bounds
+            .iter()
+            .map(|v| light_up.dot(&v.coords))
+            .fold((f32::MIN, f32::MAX), |(max, min), elem| {
+                (max.max(elem), min.min(elem))
+            });
+        let (z_max, z_min) = camera_bounds
+            .iter()
+            .map(|v| light_dir.dot(&v.coords))
+            .fold((f32::MIN, f32::MAX), |(max, min), elem| {
+                (max.max(elem), min.min(elem))
+            });
+        let light_proj = Orthographic3::new(
+            x_min,
+            x_max,
+            y_min,
+            y_max,
+            z_min.mul_add(2.0, -z_max),
+            z_max.mul_add(2.0, -z_min),
+        )
+        .to_homogeneous();
+        let light_view = Matrix4::look_at_rh(
+            &Point3::new(0.0, 0.0, 0.0),
+            &Point3::from(light_dir),
+            &light_up,
+        );
+        light_proj * light_view
+    }
 }
 
 impl Scene for MainScene {
@@ -621,19 +677,7 @@ impl Scene for MainScene {
             } else {
                 ctx.gl.depth_func(glow::LESS);
             }
-            let light_proj =
-                Orthographic3::new(-50.0, 50.0, -50.0, 50.0, 1.0, 500.0)
-                    .to_homogeneous();
-            let light_dir = (-self.light_pos.xyz()).normalize();
-            let light_look_at =
-                self.camera.position() + 50.0 * self.camera.look_direction();
-            let light_position = light_look_at - 50.0 * light_dir;
-            let light_view = Matrix4::look_at_rh(
-                &light_position,
-                &light_look_at,
-                &Vector3::new(0.0, 1.0, 0.0),
-            );
-            let light_space_matrix = light_proj * light_view;
+            let light_space_matrix = self.light_matrix();
             self.draw_shadow(ctx, &light_space_matrix);
             if self.draw_phong {
                 self.draw_phong(ctx, &light_space_matrix);

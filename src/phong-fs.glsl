@@ -28,8 +28,8 @@ float calculate_shadow(vec4 light_space_pos, vec3 normal, vec3 light_dir) {
   // using front face culling, instead of back face. But front face culling
   // also seems to fix 'shadow acne', so this might be useless.
   // TODO: more experimentation
-  // float bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.001);
-  float bias = 0.0;
+  float bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.000);
+  // float bias = 0.0;
   float shadow = current_depth - bias > shadow_depth ? 1.0 : 0.0;
   return shadow;
 }

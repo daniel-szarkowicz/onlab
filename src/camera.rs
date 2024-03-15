@@ -1,4 +1,4 @@
-use nalgebra::{Matrix4, Perspective3, Point3, Rotation3, Vector3};
+use nalgebra::{Matrix4, Perspective3, Point3, Rotation3, Vector3, Vector4};
 use winit::event::{DeviceEvent, Event, KeyEvent, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 
@@ -59,6 +59,35 @@ impl FirstPersonCamera {
         Perspective3::new(self.aspect, 60.0f32.to_radians(), 0.1, 1000.0)
             .to_homogeneous()
             * Matrix4::look_at_rh(&self.position, &self.look_at(), &Self::UP)
+    }
+
+    #[must_use]
+    fn small_view_proj(&self) -> Matrix4<f32> {
+        Perspective3::new(self.aspect, 60.0f32.to_radians(), 0.1, 100.0)
+            .to_homogeneous()
+            * Matrix4::look_at_rh(&self.position, &self.look_at(), &Self::UP)
+    }
+
+    #[must_use]
+    pub fn small_view_frustum_points(&self) -> [Point3<f32>; 8] {
+        let camera_matrix_inverse_transpose = self
+            .small_view_proj()
+            .try_inverse()
+            .expect("camera matrix is invertible");
+        [
+            Vector4::new(1.0, 1.0, 1.0, 1.0),
+            Vector4::new(1.0, 1.0, -1.0, 1.0),
+            Vector4::new(1.0, -1.0, 1.0, 1.0),
+            Vector4::new(1.0, -1.0, -1.0, 1.0),
+            Vector4::new(-1.0, 1.0, 1.0, 1.0),
+            Vector4::new(-1.0, 1.0, -1.0, 1.0),
+            Vector4::new(-1.0, -1.0, 1.0, 1.0),
+            Vector4::new(-1.0, -1.0, -1.0, 1.0),
+        ]
+        .map(|v| {
+            let p = camera_matrix_inverse_transpose * v;
+            Point3::from(p.xyz() / p.w)
+        })
     }
 
     #[rustfmt::skip]
