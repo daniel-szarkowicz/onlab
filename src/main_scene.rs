@@ -248,7 +248,7 @@ impl MainScene {
 
     fn visualize_current_frustum(&mut self) {
         let camera_bounds = self.camera.small_view_frustum_points();
-        self.objects.clear();
+        // self.objects.clear();
         for p in camera_bounds {
             self.objects.push(Object {
                 position: Point3::from(p.cast()),
@@ -612,8 +612,9 @@ impl MainScene {
         let camera_bounds = self.camera.small_view_frustum_points();
         assert!(self.light_pos.w.abs() < f32::EPSILON);
         let light_dir = (-self.light_pos.xyz()).normalize();
-        let light_up = Vector3::new(-light_dir.y, light_dir.x, light_dir.z);
-        let light_left = light_dir.cross(&light_up);
+        let light_left =
+            light_dir.cross(&Vector3::new(1.0, 0.0, 0.0)).normalize();
+        let light_up = light_left.cross(&light_dir).normalize();
         let (x_max, x_min) = camera_bounds
             .iter()
             .map(|v| light_left.dot(&v.coords))
