@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use nalgebra::{Matrix4, Perspective3, Point3, Rotation3, Vector3, Vector4};
 use winit::event::{DeviceEvent, Event, KeyEvent, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
@@ -17,10 +19,14 @@ pub struct FirstPersonCamera {
     fast: bool,
     focus: bool,
     aspect: f32,
-    pub yaw: f32,
-    pub pitch: f32,
-    pub slow_speed: f32,
-    pub fast_speed: f32,
+    yaw: f32,
+    pitch: f32,
+    slow_speed: f32,
+    fast_speed: f32,
+
+    // these two are for shadow debugging
+    freeze_small_view_proj: bool,
+    small_view_proj: RefCell<Matrix4<f32>>,
 }
 
 impl FirstPersonCamera {
@@ -62,10 +68,26 @@ impl FirstPersonCamera {
     }
 
     #[must_use]
-    fn small_view_proj(&self) -> Matrix4<f32> {
-        Perspective3::new(self.aspect, 60.0f32.to_radians(), 0.1, 100.0)
+    pub fn small_view_proj(&self) -> Matrix4<f32> {
+        if !self.freeze_small_view_proj {
+            *self.small_view_proj.borrow_mut() = Perspective3::new(
+                self.aspect,
+                60.0f32.to_radians(),
+                0.1,
+                100.0,
+            )
             .to_homogeneous()
-            * Matrix4::look_at_rh(&self.position, &self.look_at(), &Self::UP)
+                * Matrix4::look_at_rh(
+                    &self.position,
+                    &self.look_at(),
+                    &Self::UP,
+                );
+        }
+        self.small_view_proj.borrow().to_owned()
+    }
+
+    pub fn freeze_small_view_proj_mut(&mut self) -> &mut bool {
+        &mut self.freeze_small_view_proj
     }
 
     #[must_use]
@@ -213,6 +235,8 @@ impl Default for FirstPersonCamera {
             aspect: 1.0,
             slow_speed: 3.0,
             fast_speed: 10.0,
+            freeze_small_view_proj: false,
+            small_view_proj: RefCell::new(Matrix4::identity()),
         }
     }
 }

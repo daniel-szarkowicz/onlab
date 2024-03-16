@@ -33,6 +33,7 @@ pub struct MainScene {
     depth_pass: bool,
     draw_phong: bool,
     draw_debug: bool,
+    draw_shadow_frustums: bool,
     camera: FirstPersonCamera,
     bounding_box_mesh: Mesh<PVertex>,
     rectangle_mesh: Mesh<PVertex>,
@@ -80,6 +81,7 @@ impl MainScene {
             depth_pass: true,
             draw_phong: true,
             draw_debug: false,
+            draw_shadow_frustums: false,
             camera: FirstPersonCamera::default(),
             bounding_box_mesh,
             rectangle_mesh,
@@ -483,6 +485,60 @@ impl MainScene {
         }
     }
 
+    fn draw_shadow_frustums(&self, ctx: &mut Context) {
+        unsafe {
+            ctx.use_shader_program(&self.debug_shader_program);
+            let model = ctx
+                .gl
+                .get_uniform_location(
+                    self.debug_shader_program.program,
+                    "model",
+                )
+                .unwrap();
+            let view_proj = ctx
+                .gl
+                .get_uniform_location(
+                    self.debug_shader_program.program,
+                    "view_proj",
+                )
+                .unwrap();
+            let view_proj_m = self.camera.view_proj();
+            ctx.gl.uniform_matrix_4_f32_slice(
+                Some(&view_proj),
+                false,
+                view_proj_m.as_slice(),
+            );
+            let color = ctx
+                .gl
+                .get_uniform_location(
+                    self.debug_shader_program.program,
+                    "color",
+                )
+                .unwrap();
+            let double_scale = Scale3::new(2.0, 2.0, 2.0).to_homogeneous();
+            let model_m =
+                self.light_matrix().try_inverse().unwrap() * double_scale;
+            ctx.gl.line_width(1.0);
+            ctx.gl.uniform_matrix_4_f32_slice(
+                Some(&model),
+                false,
+                model_m.as_slice(),
+            );
+            ctx.gl.uniform_3_f32_slice(Some(&color), &[0.75, 0.0, 0.0]);
+            ctx.draw_mesh(&self.bounding_box_mesh);
+            let model_m = self.camera.small_view_proj().try_inverse().unwrap()
+                * double_scale;
+            ctx.gl.line_width(1.0);
+            ctx.gl.uniform_matrix_4_f32_slice(
+                Some(&model),
+                false,
+                model_m.as_slice(),
+            );
+            ctx.gl.uniform_3_f32_slice(Some(&color), &[0.0, 0.75, 0.0]);
+            ctx.draw_mesh(&self.bounding_box_mesh);
+        }
+    }
+
     fn draw_hud(&self, ctx: &mut Context) {
         unsafe {
             ctx.use_shader_program(&self.hud_shader_program);
@@ -550,6 +606,8 @@ impl MainScene {
         ui.checkbox(&mut self.depth_pass, "Depth pass");
         ui.checkbox(&mut self.draw_phong, "Draw objects");
         ui.checkbox(&mut self.draw_debug, "Draw bounds");
+        ui.checkbox(self.camera.freeze_small_view_proj_mut(), "Freeze shadows");
+        ui.checkbox(&mut self.draw_shadow_frustums, "Draw shadow frustums");
         ui.add(
             DragValue::new(&mut self.max_depth)
                 .prefix("Max depth: ")
@@ -686,6 +744,9 @@ impl Scene for MainScene {
             }
             if self.camera.focus() {
                 self.draw_hud(ctx);
+            }
+            if self.draw_shadow_frustums {
+                self.draw_shadow_frustums(ctx);
             }
             ctx.egui.run(&ctx.window, |egui_ctx| {
                 Window::new("Debug").show(egui_ctx, |ui| {
