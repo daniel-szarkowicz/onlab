@@ -3,7 +3,7 @@ use std::{error::Error, marker::PhantomData};
 
 use glow::{HasContext, NativeVertexArray};
 
-use crate::{context::Context, vertex::Vertex};
+use crate::{context::Context, render_state::RenderState, vertex::Vertex};
 
 #[derive(Clone, Copy, Debug)]
 #[allow(clippy::cast_possible_wrap)]
@@ -106,6 +106,21 @@ impl DrawMesh for Context {
                 0,
             );
             self.gl.bind_vertex_array(None);
+        }
+    }
+}
+
+impl DrawMesh for RenderState {
+    unsafe fn draw_mesh<V: Vertex>(&self, mesh: &Mesh<V>) {
+        unsafe {
+            self.gl().bind_vertex_array(Some(mesh.vertex_array));
+            self.gl().draw_elements(
+                mesh.primitive as u32,
+                mesh.count,
+                glow::UNSIGNED_SHORT,
+                0,
+            );
+            self.gl().bind_vertex_array(None);
         }
     }
 }

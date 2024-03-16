@@ -17,6 +17,8 @@ use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
 
+use crate::render_state::RenderState;
+
 #[allow(missing_debug_implementations)]
 pub struct Context {
     pub gl: Arc<glow::Context>,
@@ -24,6 +26,7 @@ pub struct Context {
     pub gl_context: PossiblyCurrentContext,
     pub egui: egui_glow::EguiGlow,
     pub window: Window,
+    pub render_state: RenderState,
 }
 
 impl Context {
@@ -118,12 +121,15 @@ impl Context {
                 .unwrap();
         });
 
+        let render_state = RenderState::new(gl.clone());
+
         Self {
             gl,
             gl_surface,
             gl_context,
             egui: egui_glow,
             window,
+            render_state,
         }
     }
 }

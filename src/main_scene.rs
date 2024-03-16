@@ -16,6 +16,7 @@ use crate::camera::FirstPersonCamera;
 use crate::collider::Collider;
 use crate::mesh::{DrawMesh, Mesh};
 use crate::object::Object;
+use crate::render_state::SetUniform;
 use crate::shader_program::{ShaderProgram, UseShaderProgram};
 use crate::simulation::Simulation;
 use crate::vertex::PVertex;
@@ -261,84 +262,44 @@ impl MainScene {
     }
 
     fn depth_pass(&self, ctx: &mut Context) {
-        unsafe {
-            ctx.use_shader_program(&self.depth_pass_program);
-            let model = ctx
-                .gl
-                .get_uniform_location(self.depth_pass_program.program, "model")
-                .unwrap();
-            let view_proj = ctx
-                .gl
-                .get_uniform_location(
-                    self.depth_pass_program.program,
-                    "view_proj",
-                )
-                .unwrap();
-            let view_proj_m = self.camera.view_proj();
-            ctx.gl.uniform_matrix_4_f32_slice(
-                Some(&view_proj),
-                false,
-                view_proj_m.as_slice(),
-            );
-            for object in &self.objects {
-                let model_m = object.model();
-                ctx.gl.uniform_matrix_4_f32_slice(
-                    Some(&model),
-                    false,
-                    model_m.as_slice(),
-                );
-                ctx.draw_mesh(&object.mesh);
-            }
+        ctx.render_state.set_program(&self.depth_pass_program);
+        ctx.render_state
+            .set_uniform("view_proj", &self.camera.view_proj());
+        for object in &self.objects {
+            ctx.render_state.set_uniform("model", &object.model());
+            unsafe { ctx.render_state.draw_mesh(&object.mesh) };
         }
     }
 
-    fn draw_shadow(&self, ctx: &Context, light_space_matrix: &Matrix4<f32>) {
-        unsafe {
-            ctx.gl.viewport(
-                0,
-                0,
-                shadow_util::SHADOW_WIDTH,
-                shadow_util::SHADOW_HEIGHT,
-            );
-            ctx.gl
-                .bind_framebuffer(glow::FRAMEBUFFER, Some(self.shadow_buffer));
-            ctx.gl.cull_face(glow::FRONT);
-            ctx.gl.clear(glow::DEPTH_BUFFER_BIT);
-            ctx.use_shader_program(&self.depth_pass_program);
-            let model = ctx
-                .gl
-                .get_uniform_location(self.depth_pass_program.program, "model")
-                .unwrap();
-            let view_proj = ctx
-                .gl
-                .get_uniform_location(
-                    self.depth_pass_program.program,
-                    "view_proj",
-                )
-                .unwrap();
-            ctx.gl.uniform_matrix_4_f32_slice(
-                Some(&view_proj),
-                false,
-                light_space_matrix.as_slice(),
-            );
-            for object in &self.objects {
-                let model_m = object.model();
-                ctx.gl.uniform_matrix_4_f32_slice(
-                    Some(&model),
-                    false,
-                    model_m.as_slice(),
-                );
-                ctx.draw_mesh(&object.mesh);
-            }
-            ctx.gl.cull_face(glow::BACK);
-            ctx.gl.bind_framebuffer(glow::FRAMEBUFFER, None);
-            ctx.gl.viewport(
-                0,
-                0,
-                self.surface_width as i32,
-                self.surface_height as i32,
-            );
+    fn draw_shadow(
+        &self,
+        ctx: &mut Context,
+        light_space_matrix: &Matrix4<f32>,
+    ) {
+        ctx.render_state.set_viewport(
+            0,
+            0,
+            shadow_util::SHADOW_WIDTH,
+            shadow_util::SHADOW_HEIGHT,
+        );
+        ctx.render_state.set_framebuffer(self.shadow_buffer);
+        ctx.render_state.set_cull_face(glow::FRONT);
+        unsafe { ctx.render_state.gl().clear(glow::DEPTH_BUFFER_BIT) };
+        ctx.render_state.set_program(&self.depth_pass_program);
+        ctx.render_state
+            .set_uniform("view_proj", light_space_matrix);
+        for object in &self.objects {
+            ctx.render_state.set_uniform("model", &object.model());
+            unsafe { ctx.render_state.draw_mesh(&object.mesh) };
         }
+        ctx.render_state.set_cull_face(glow::BACK);
+        ctx.render_state.unset_framebuffer();
+        ctx.render_state.set_viewport(
+            0,
+            0,
+            self.surface_width as i32,
+            self.surface_height as i32,
+        );
     }
 
     fn draw_phong(&self, ctx: &mut Context, light_space_matrix: &Matrix4<f32>) {
