@@ -303,241 +303,88 @@ impl MainScene {
     }
 
     fn draw_phong(&self, ctx: &mut Context, light_space_matrix: &Matrix4<f32>) {
+        ctx.render_state.set_program(&self.phong_shader_program);
         unsafe {
-            ctx.use_shader_program(&self.phong_shader_program);
-            let model = ctx.gl.get_uniform_location(
-                self.phong_shader_program.program,
-                "model",
-            );
-            let model_inv = ctx.gl.get_uniform_location(
-                self.phong_shader_program.program,
-                "model_inv",
-            );
-            let view_proj = ctx.gl.get_uniform_location(
-                self.phong_shader_program.program,
-                "view_proj",
-            );
-            let w_eye = ctx.gl.get_uniform_location(
-                self.phong_shader_program.program,
-                "wEye",
-            );
-            let w_li_pos = ctx.gl.get_uniform_location(
-                self.phong_shader_program.program,
-                "wLiPos",
-            );
-            let light_space = ctx.gl.get_uniform_location(
-                self.phong_shader_program.program,
-                "light_space_matrix",
-            );
-            let shadow_map = ctx.gl.get_uniform_location(
-                self.phong_shader_program.program,
+            ctx.render_state.set_texture_2d_uniform(
                 "shadow_map",
+                0,
+                self.shadow_map,
             );
-            ctx.gl.uniform_1_i32(shadow_map.as_ref(), 0);
-            ctx.gl.bind_texture(glow::TEXTURE_2D, Some(self.shadow_map));
-            ctx.gl.uniform_matrix_4_f32_slice(
-                light_space.as_ref(),
-                false,
-                light_space_matrix.as_slice(),
-            );
-            let view_proj_m = self.camera.view_proj();
-            ctx.gl.uniform_matrix_4_f32_slice(
-                view_proj.as_ref(),
-                false,
-                view_proj_m.as_slice(),
-            );
-            ctx.gl.uniform_3_f32_slice(
-                w_eye.as_ref(),
-                self.camera.position().coords.as_slice(),
-            );
-            ctx.gl.uniform_4_f32_slice(
-                w_li_pos.as_ref(),
-                self.light_pos.as_slice(),
-            );
-            for object in &self.objects {
-                let model_m = object.model();
-                let model_inv_m = model_m.try_inverse().unwrap();
-                ctx.gl.uniform_matrix_4_f32_slice(
-                    model.as_ref(),
-                    false,
-                    model_m.as_slice(),
-                );
-                ctx.gl.uniform_matrix_4_f32_slice(
-                    model_inv.as_ref(),
-                    false,
-                    model_inv_m.as_slice(),
-                );
-                ctx.draw_mesh(&object.mesh);
-            }
+        }
+        ctx.render_state
+            .set_uniform("light_space_matrix", light_space_matrix);
+        ctx.render_state
+            .set_uniform("view_proj", &self.camera.view_proj());
+        ctx.render_state
+            .set_uniform("wEye", &self.camera.position().coords);
+        ctx.render_state.set_uniform("wLiPos", &self.light_pos);
+        for object in &self.objects {
+            let model_m = object.model();
+            ctx.render_state.set_uniform("model", &model_m);
+            ctx.render_state
+                .set_uniform("model_inv", &model_m.try_inverse().unwrap());
+            unsafe { ctx.render_state.draw_mesh(&object.mesh) };
         }
     }
 
     fn draw_debug(&self, ctx: &mut Context) {
-        unsafe {
-            ctx.use_shader_program(&self.debug_shader_program);
-            let model = ctx
-                .gl
-                .get_uniform_location(
-                    self.debug_shader_program.program,
-                    "model",
-                )
-                .unwrap();
-            let view_proj = ctx
-                .gl
-                .get_uniform_location(
-                    self.debug_shader_program.program,
-                    "view_proj",
-                )
-                .unwrap();
-            let view_proj_m = self.camera.view_proj();
-            ctx.gl.uniform_matrix_4_f32_slice(
-                Some(&view_proj),
-                false,
-                view_proj_m.as_slice(),
-            );
-            let color = ctx
-                .gl
-                .get_uniform_location(
-                    self.debug_shader_program.program,
+        ctx.render_state.set_program(&self.debug_shader_program);
+        ctx.render_state
+            .set_uniform("view_proj", &self.camera.view_proj());
+        for (depth, aabb) in self.simulation.rtree.aabbs() {
+            if depth < self.max_depth {
+                ctx.render_state
+                    .set_line_width((self.max_depth - depth) as f32 + 1.0);
+                let size = aabb.end() - aabb.start();
+                let pos = aabb.start() + size / 2.0;
+                let model_m = Translation3::from(pos.cast::<f32>())
+                    .to_homogeneous()
+                    * Scale3::from(size.cast::<f32>()).to_homogeneous();
+
+                ctx.render_state.set_uniform("model", &model_m);
+                ctx.render_state.set_uniform(
                     "color",
-                )
-                .unwrap();
-            // for object in &self.objects {
-            //     let aabb = object.aabb();
-            //     let size = aabb.end() - aabb.start();
-            //     let pos = aabb.start() + size / 2.0;
-            //     let model_m = Translation3::from(pos.cast::<f32>())
-            //         .to_homogeneous()
-            //         * Scale3::from(size.cast::<f32>()).to_homogeneous();
-
-            //     ctx.gl.uniform_matrix_4_f32_slice(
-            //         Some(&model),
-            //         false,
-            //         model_m.as_slice(),
-            //     );
-            //     ctx.gl.uniform_3_f32_slice(Some(&color), &[1.0, 0.0, 0.0]);
-            //     ctx.draw_mesh(&self.bounding_box_mesh);
-            // }
-            for (depth, aabb) in self.simulation.rtree.aabbs() {
-                if depth < self.max_depth {
-                    ctx.gl.line_width((self.max_depth - depth) as f32 + 1.0);
-                    let size = aabb.end() - aabb.start();
-                    let pos = aabb.start() + size / 2.0;
-                    let model_m = Translation3::from(pos.cast::<f32>())
-                        .to_homogeneous()
-                        * Scale3::from(size.cast::<f32>()).to_homogeneous();
-
-                    ctx.gl.uniform_matrix_4_f32_slice(
-                        Some(&model),
-                        false,
-                        model_m.as_slice(),
-                    );
-                    ctx.gl.uniform_3_f32_slice(
-                        Some(&color),
-                        &[
-                            (depth % 2) as f32 * 0.75,
-                            (depth / 2 % 2) as f32 * 0.75,
-                            (depth / 4 % 2) as f32 * 0.75,
-                        ],
-                    );
-                    ctx.draw_mesh(&self.bounding_box_mesh);
-                }
+                    &[
+                        (depth % 2) as f32 * 0.75,
+                        (depth / 2 % 2) as f32 * 0.75,
+                        (depth / 4 % 2) as f32 * 0.75,
+                    ],
+                );
+                unsafe { ctx.render_state.draw_mesh(&self.bounding_box_mesh) };
             }
         }
     }
 
     fn draw_shadow_frustums(&self, ctx: &mut Context) {
-        unsafe {
-            ctx.use_shader_program(&self.debug_shader_program);
-            let model = ctx
-                .gl
-                .get_uniform_location(
-                    self.debug_shader_program.program,
-                    "model",
-                )
-                .unwrap();
-            let view_proj = ctx
-                .gl
-                .get_uniform_location(
-                    self.debug_shader_program.program,
-                    "view_proj",
-                )
-                .unwrap();
-            let view_proj_m = self.camera.view_proj();
-            ctx.gl.uniform_matrix_4_f32_slice(
-                Some(&view_proj),
-                false,
-                view_proj_m.as_slice(),
-            );
-            let color = ctx
-                .gl
-                .get_uniform_location(
-                    self.debug_shader_program.program,
-                    "color",
-                )
-                .unwrap();
-            let double_scale = Scale3::new(2.0, 2.0, 2.0).to_homogeneous();
-            let model_m =
-                self.light_matrix().try_inverse().unwrap() * double_scale;
-            ctx.gl.line_width(1.0);
-            ctx.gl.uniform_matrix_4_f32_slice(
-                Some(&model),
-                false,
-                model_m.as_slice(),
-            );
-            ctx.gl.uniform_3_f32_slice(Some(&color), &[0.75, 0.0, 0.0]);
-            ctx.draw_mesh(&self.bounding_box_mesh);
-            let model_m = self.camera.small_view_proj().try_inverse().unwrap()
-                * double_scale;
-            ctx.gl.line_width(1.0);
-            ctx.gl.uniform_matrix_4_f32_slice(
-                Some(&model),
-                false,
-                model_m.as_slice(),
-            );
-            ctx.gl.uniform_3_f32_slice(Some(&color), &[0.0, 0.75, 0.0]);
-            ctx.draw_mesh(&self.bounding_box_mesh);
-        }
+        ctx.render_state.set_program(&self.debug_shader_program);
+        ctx.render_state
+            .set_uniform("view_proj", &self.camera.view_proj());
+        ctx.render_state.set_line_width(1.0);
+        let double_scale = Scale3::new(2.0, 2.0, 2.0).to_homogeneous();
+        let model_m = self.light_matrix().try_inverse().unwrap() * double_scale;
+        ctx.render_state.set_uniform("model", &model_m);
+        ctx.render_state.set_uniform("color", &[0.75, 0.0, 0.0]);
+        unsafe { ctx.render_state.draw_mesh(&self.bounding_box_mesh) };
+        let model_m =
+            self.camera.small_view_proj().try_inverse().unwrap() * double_scale;
+        ctx.render_state.set_uniform("model", &model_m);
+        ctx.render_state.set_uniform("color", &[0.0, 0.75, 0.0]);
+        unsafe { ctx.render_state.draw_mesh(&self.bounding_box_mesh) };
     }
 
     fn draw_hud(&self, ctx: &mut Context) {
-        unsafe {
-            ctx.use_shader_program(&self.hud_shader_program);
-            let model = ctx
-                .gl
-                .get_uniform_location(self.hud_shader_program.program, "model")
-                .unwrap();
-            let view_proj = ctx
-                .gl
-                .get_uniform_location(
-                    self.hud_shader_program.program,
-                    "view_proj",
-                )
-                .unwrap();
-            let view_proj_m = Scale3::new(
-                1.0 / self.surface_width,
-                1.0 / self.surface_height,
-                1.0,
-            )
-            .to_homogeneous();
-            let model_m = Scale3::new(20.0, 20.0, 1.0).to_homogeneous();
-            ctx.gl.uniform_matrix_4_f32_slice(
-                Some(&view_proj),
-                false,
-                view_proj_m.as_slice(),
-            );
-            let color = ctx
-                .gl
-                .get_uniform_location(self.hud_shader_program.program, "color")
-                .unwrap();
-            ctx.gl.uniform_matrix_4_f32_slice(
-                Some(&model),
-                false,
-                model_m.as_slice(),
-            );
-            ctx.gl.uniform_3_f32_slice(Some(&color), &[0.0, 0.0, 1.0]);
-            ctx.draw_mesh(&self.rectangle_mesh);
-        }
+        ctx.render_state.set_program(&self.hud_shader_program);
+        let view_proj_m = Scale3::new(
+            1.0 / self.surface_width,
+            1.0 / self.surface_height,
+            1.0,
+        )
+        .to_homogeneous();
+        let model_m = Scale3::new(20.0, 20.0, 1.0).to_homogeneous();
+        ctx.render_state.set_uniform("view_proj", &view_proj_m);
+        ctx.render_state.set_uniform("color", &[0.0, 0.0, 1.0]);
+        ctx.render_state.set_uniform("model", &model_m);
+        unsafe { ctx.render_state.draw_mesh(&self.rectangle_mesh) };
     }
 
     fn draw_ui(&mut self, ui: &mut Ui) {

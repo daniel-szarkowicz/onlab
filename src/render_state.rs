@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use glow::{
-    HasContext, NativeFramebuffer, NativeProgram, NativeUniformLocation,
+    HasContext, NativeFramebuffer, NativeProgram, NativeTexture,
+    NativeUniformLocation,
 };
-use nalgebra::{Matrix4, Vector3};
+use nalgebra::{Matrix4, Vector3, Vector4};
 
 use crate::{shader_program::ShaderProgram, vertex::Vertex};
 
@@ -13,6 +14,7 @@ pub struct RenderState {
     viewport: [i32; 4],
     framebuffer: Option<NativeFramebuffer>,
     cull_face: u32,
+    line_width: f32,
     program: Option<NativeProgram>,
 }
 
@@ -23,6 +25,7 @@ impl RenderState {
             viewport: [0, 0, 100, 100],
             framebuffer: None,
             cull_face: glow::BACK,
+            line_width: 1.0,
             program: None,
         };
         unsafe {
@@ -31,6 +34,7 @@ impl RenderState {
             this.gl
                 .bind_framebuffer(glow::FRAMEBUFFER, this.framebuffer);
             this.gl.cull_face(this.cull_face);
+            this.gl.line_width(this.line_width);
             this.gl.use_program(this.program);
         }
         this
@@ -94,6 +98,34 @@ impl RenderState {
         // }
     }
 
+    pub fn set_line_width(&mut self, size: f32) {
+        // #[allow(clippy::float_cmp)]
+        // if self.line_width != size {
+        self.line_width = size;
+        unsafe { self.gl.line_width(self.line_width) };
+        // }
+    }
+
+    /// # Safety
+    /// `texture_index` should be different for every texture used in the
+    /// same draw call.
+    /// `texture` should be backed by a `glow::TEXTURE_2D`.
+    #[deprecated = "TODO: implement proper texture handling"]
+    pub unsafe fn set_texture_2d_uniform(
+        &mut self,
+        name: &str,
+        texture_index: u32,
+        texture: NativeTexture,
+    ) {
+        assert!(texture_index < 16);
+        unsafe {
+            self.gl.active_texture(glow::TEXTURE0 + texture_index);
+            self.gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+            #[allow(clippy::cast_possible_wrap)]
+            self.set_uniform(name, &(texture_index as i32));
+        }
+    }
+
     /// # Safety
     /// Changing the state of the GL context should always be reflected
     /// in `RenderState`
@@ -118,6 +150,17 @@ impl SetUniform<Vector3<f32>> for RenderState {
     }
 }
 
+impl SetUniform<Vector4<f32>> for RenderState {
+    fn set_uniform(&mut self, name: &str, data: &Vector4<f32>) {
+        unsafe {
+            self.gl.uniform_4_f32_slice(
+                self.get_uniform_location(name).as_ref(),
+                data.as_slice(),
+            );
+        }
+    }
+}
+
 impl SetUniform<Matrix4<f32>> for RenderState {
     fn set_uniform(&mut self, name: &str, data: &Matrix4<f32>) {
         unsafe {
@@ -125,6 +168,26 @@ impl SetUniform<Matrix4<f32>> for RenderState {
                 self.get_uniform_location(name).as_ref(),
                 false,
                 data.as_slice(),
+            );
+        }
+    }
+}
+
+impl SetUniform<i32> for RenderState {
+    fn set_uniform(&mut self, name: &str, data: &i32) {
+        unsafe {
+            self.gl
+                .uniform_1_i32(self.get_uniform_location(name).as_ref(), *data);
+        }
+    }
+}
+
+impl SetUniform<[f32; 3]> for RenderState {
+    fn set_uniform(&mut self, name: &str, data: &[f32; 3]) {
+        unsafe {
+            self.gl.uniform_3_f32_slice(
+                self.get_uniform_location(name).as_ref(),
+                data,
             );
         }
     }
