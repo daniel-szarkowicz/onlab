@@ -639,14 +639,11 @@ impl MainScene {
             y_min,
             y_max,
             z_min.mul_add(2.0, -z_max),
-            z_max.mul_add(2.0, -z_min),
+            z_max,
         )
         .to_homogeneous();
-        let light_view = Matrix4::look_at_rh(
-            &Point3::new(0.0, 0.0, 0.0),
-            &Point3::from(light_dir),
-            &light_up,
-        );
+        let light_view =
+            Rotation3::look_at_rh(&light_dir, &light_up).to_homogeneous();
         light_proj * light_view
     }
 }
