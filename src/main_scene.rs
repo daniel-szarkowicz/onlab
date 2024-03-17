@@ -88,11 +88,7 @@ impl MainScene {
             paused: false,
             simulation: Simulation::default(),
             max_depth: 5,
-            lights: vec![
-                DirectionalLight::new(ctx.gl.as_ref()),
-                DirectionalLight::new(ctx.gl.as_ref()),
-                DirectionalLight::new(ctx.gl.as_ref()),
-            ],
+            lights: vec![DirectionalLight::new(ctx.gl.as_ref())],
         })
     }
 
@@ -389,7 +385,8 @@ impl MainScene {
         unsafe { ctx.render_state.draw_mesh(&self.rectangle_mesh) };
     }
 
-    fn draw_ui(&mut self, ui: &mut Ui) {
+    #[allow(clippy::too_many_lines)]
+    fn draw_ui(&mut self, ui: &mut Ui, gl: &glow::Context) {
         ui.set_min_width(200.0);
         ui.checkbox(&mut self.paused, "Pause");
         if ui.button("Many spheres").clicked() {
@@ -430,6 +427,8 @@ impl MainScene {
                 .clamp_range(-1.0..=2.0)
                 .speed(0.005),
         );
+        ui.separator();
+        let mut remove = None;
         for (i, light) in self.lights.iter_mut().enumerate() {
             if ui.button(format!("Set light {i} direction")).clicked() {
                 light.set_direction(&self.camera.look_direction());
@@ -442,7 +441,19 @@ impl MainScene {
                 ui.label(format!("Light {i} emissive color: "));
                 ui.color_edit_button_rgb(light.emissive_color_mut());
             });
+            if remove.is_none()
+                && ui.button(format!("Remove light {i}")).clicked()
+            {
+                remove = Some(i);
+            }
         }
+        if let Some(index) = remove {
+            self.lights.remove(index);
+        }
+        if self.lights.len() < 8 && ui.button("Add light").clicked() {
+            self.lights.push(DirectionalLight::new(gl));
+        }
+        ui.separator();
         ui.add(
             DragValue::new(&mut self.simulation.mu)
                 .prefix("Coefficient of friction: ")
@@ -533,7 +544,7 @@ impl Scene for MainScene {
             ctx.egui.run(&ctx.window, |egui_ctx| {
                 Window::new("Debug").show(egui_ctx, |ui| {
                     ui.label(format!("FPS: {:2.2}", 1.0 / delta));
-                    self.draw_ui(ui);
+                    self.draw_ui(ui, &ctx.gl);
                 });
             });
             ctx.egui.paint(&ctx.window);
