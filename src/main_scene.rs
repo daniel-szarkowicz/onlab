@@ -88,7 +88,11 @@ impl MainScene {
             paused: false,
             simulation: Simulation::default(),
             max_depth: 5,
-            lights: vec![DirectionalLight::new(ctx.gl.as_ref())],
+            lights: vec![
+                DirectionalLight::new(ctx.gl.as_ref()),
+                DirectionalLight::new(ctx.gl.as_ref()),
+                DirectionalLight::new(ctx.gl.as_ref()),
+            ],
         })
     }
 
@@ -283,26 +287,36 @@ impl MainScene {
 
     fn draw_phong(&self, ctx: &mut Context) {
         ctx.render_state.set_program(&self.phong_shader_program);
-        // TODO: handle multiple lights
-        unsafe {
-            ctx.render_state.set_texture_2d_uniform(
-                "shadow_map",
-                0,
-                *self.lights[0].native_texture(),
+        ctx.render_state.set_uniform(
+            "directional_light_count",
+            &(self.lights.len() as u32),
+        );
+        for (i, light) in self.lights.iter().enumerate() {
+            let prefix = format!("directional_lights[{i}]");
+            ctx.render_state
+                .set_uniform(&format!("{prefix}.direction"), light.direction());
+            ctx.render_state.set_uniform(
+                &format!("{prefix}.ambient_color"),
+                light.ambient_color(),
             );
+            ctx.render_state.set_uniform(
+                &format!("{prefix}.emissive_color"),
+                light.emissive_color(),
+            );
+            ctx.render_state
+                .set_uniform(&format!("{prefix}.matrix"), light.view_proj());
+            unsafe {
+                ctx.render_state.set_texture_2d_uniform(
+                    &format!("{prefix}.shadow_map"),
+                    i as u32,
+                    *light.native_texture(),
+                );
+            }
         }
-        ctx.render_state
-            .set_uniform("light_space_matrix", self.lights[0].view_proj());
-        ctx.render_state
-            .set_uniform("view_proj", &self.camera.view_proj());
         ctx.render_state
             .set_uniform("wEye", &self.camera.position().coords);
         ctx.render_state
-            .set_uniform("wLiPos", &-self.lights[0].direction().push(0.0));
-        ctx.render_state
-            .set_uniform("La", self.lights[0].ambient_color());
-        ctx.render_state
-            .set_uniform("Le", self.lights[0].emissive_color());
+            .set_uniform("view_proj", &self.camera.view_proj());
         for object in &self.objects {
             let model_m = object.model();
             ctx.render_state.set_uniform("model", &model_m);
@@ -497,8 +511,11 @@ impl Scene for MainScene {
             } else {
                 ctx.gl.depth_func(glow::LESS);
             }
-            self.lights[0]
-                .update(&self.camera.small_view_proj().try_inverse().unwrap());
+            for light in &mut self.lights {
+                light.update(
+                    &self.camera.small_view_proj().try_inverse().unwrap(),
+                );
+            }
             self.draw_shadow(ctx);
             if self.draw_phong {
                 self.draw_phong(ctx);

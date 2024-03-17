@@ -51,10 +51,15 @@ impl RenderState {
         unsafe {
             self.program.map_or_else(
                 || {
-                    eprintln!("{}:{} No shader bound", file!(), line!());
+                    eprintln!("No shader bound");
                     None
                 },
-                |program| self.gl.get_uniform_location(program, name),
+                |program| {
+                    self.gl.get_uniform_location(program, name).or_else(|| {
+                        eprintln!("No uniform with name {name}");
+                        None
+                    })
+                },
             )
         }
     }
@@ -199,6 +204,15 @@ impl SetUniform<[f32; 3]> for RenderState {
                 self.get_uniform_location(name).as_ref(),
                 data,
             );
+        }
+    }
+}
+
+impl SetUniform<u32> for RenderState {
+    fn set_uniform(&mut self, name: &str, data: &u32) {
+        unsafe {
+            self.gl
+                .uniform_1_u32(self.get_uniform_location(name).as_ref(), *data);
         }
     }
 }

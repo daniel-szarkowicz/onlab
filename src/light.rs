@@ -12,7 +12,7 @@ use crate::{
 pub const SHADOW_WIDTH: i32 = 2048;
 pub const SHADOW_HEIGHT: i32 = SHADOW_WIDTH;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct DirectionalLight {
     direction: Vector3<f32>,
     shadow_buffer: NativeFramebuffer,
