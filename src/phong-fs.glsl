@@ -37,22 +37,34 @@ float calculate_shadow(uint i, vec3 normal, vec3 light_dir) {
   }
   float shadow = 0.0;
   vec2 texel_size = 1 / vec2(textureSize(directional_lights[i].shadow_map, 0));
-  int radius = 2;
-  for (int x = -radius; x <= radius; x += 1) {
-    for (int y = -radius; y <= radius; y += 1) {
+  // it might be necessary to offset the current depth by a bias value
+  // float bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.000);
+  float samples = 8;
+  float radius = 1.5;
+  float pi = 3.141592653589793;
+  for (float n = samples; n > 0; n -= 1) {
+    for (float m = 1; m <= samples; m += 1) {
+      float u = n/samples;
+      float v = m/samples;
+      float x = sqrt(u) * cos(2*pi * v);
+      float y = sqrt(u) * sin(2*pi * v);
       float shadow_depth = texture(
-        directional_lights[i].shadow_map, proj_coords.xy + vec2(x, y) * texel_size
+        directional_lights[i].shadow_map, proj_coords.xy + vec2(x, y) * texel_size * radius
       ).r;
-      // This fixes 'shadow acne', but causes 'peter panning' which is fixed by
-      // using front face culling, instead of back face. But front face culling
-      // also seems to fix 'shadow acne', so this might be useless.
-      // TODO: more experimentation
-      // float bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.000);
-      float bias = 0.0;
-      shadow += current_depth - bias > shadow_depth ? 1.0 : 0.0;
+      shadow += current_depth > shadow_depth ? 1.0 : 0.0;
+    }
+    // if this is the first round and everything was/wasn't shadowed
+    // then very likely the rest would be the same, so we don't need to check
+    if (n == samples) {
+      if (shadow == samples) {
+        return 1.0;
+      }
+      if (shadow == 0) {
+        return 0.0;
+      }
     }
   }
-  return shadow / ((2*radius + 1) * (2*radius + 1));
+  return shadow / (samples * samples);
 }
 
 void main() {
