@@ -80,7 +80,7 @@ impl DirectionalLight {
             (shadow_buffer, shadow_map)
         };
         Self {
-            direction: Vector3::new(-1.0, -1.0, 1.0),
+            direction: Vector3::new(-1.0, -1.0, 1.0).normalize(),
             shadow_buffer,
             shadow_map,
             ambient_color: [0.3; 3],
