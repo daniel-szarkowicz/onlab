@@ -23,14 +23,15 @@ layout(location = 1) in vec3 vertexNormal;
 
 out vec3 wNormal;
 out vec3 wView;
-out vec4 directional_light_space_pos[8];
+out vec3 directional_shadow_map_coords[8];
 
 void main() {
   gl_Position = view_proj * model * vertexPosition;
   vec4 wPos = model * vertexPosition;
   wView = wEye*wPos.w - wPos.xyz;
   for (uint i = 0; i < directional_light_count; ++i) {
-    directional_light_space_pos[i] = directional_lights[i].matrix * wPos;
+    vec4 light_space_pos = directional_lights[i].matrix * wPos;
+    directional_shadow_map_coords[i] = (light_space_pos.xyz / light_space_pos.w) * 0.5 + 0.5;
   }
   wNormal = (vec4(vertexNormal, 0) * model_inv).xyz;
 }
