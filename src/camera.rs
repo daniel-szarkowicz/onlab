@@ -1,13 +1,11 @@
-use std::cell::RefCell;
-
-use nalgebra::{Matrix4, Perspective3, Point3, Rotation3, Vector3, Vector4};
+use nalgebra::{Matrix4, Perspective3, Point3, Rotation3, Vector3};
 use winit::event::{DeviceEvent, Event, KeyEvent, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 
 use crate::ray::Ray;
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FirstPersonCamera {
     position: Point3<f32>,
     forwards: bool,
@@ -23,10 +21,8 @@ pub struct FirstPersonCamera {
     pitch: f32,
     slow_speed: f32,
     fast_speed: f32,
-
-    // these two are for shadow debugging
-    freeze_small_view_proj: bool,
-    small_view_proj: RefCell<Matrix4<f32>>,
+    near: f32,
+    far: f32,
 }
 
 impl FirstPersonCamera {
@@ -62,54 +58,22 @@ impl FirstPersonCamera {
 
     #[must_use]
     pub fn view_proj(&self) -> Matrix4<f32> {
-        Perspective3::new(self.aspect, 60.0f32.to_radians(), 0.1, 1000.0)
-            .to_homogeneous()
+        self.partial_view_proj(0.0, 1.0)
+    }
+
+    /// # Panics
+    /// If the invariant `0.0 <= start < end <= 1.0` is not satisfied.
+    #[must_use]
+    pub fn partial_view_proj(&self, start: f32, end: f32) -> Matrix4<f32> {
+        assert!(0.0 <= start && start < end && end <= 1.0);
+        Perspective3::new(
+            self.aspect,
+            60.0f32.to_radians(),
+            (1.0 - start).mul_add(self.near, start * self.far),
+            (1.0 - end).mul_add(self.near, end * self.far),
+        )
+        .to_homogeneous()
             * Matrix4::look_at_rh(&self.position, &self.look_at(), &Self::UP)
-    }
-
-    #[must_use]
-    pub fn small_view_proj(&self) -> Matrix4<f32> {
-        if !self.freeze_small_view_proj {
-            *self.small_view_proj.borrow_mut() = Perspective3::new(
-                self.aspect,
-                60.0f32.to_radians(),
-                0.1,
-                100.0,
-            )
-            .to_homogeneous()
-                * Matrix4::look_at_rh(
-                    &self.position,
-                    &self.look_at(),
-                    &Self::UP,
-                );
-        }
-        self.small_view_proj.borrow().to_owned()
-    }
-
-    pub fn freeze_small_view_proj_mut(&mut self) -> &mut bool {
-        &mut self.freeze_small_view_proj
-    }
-
-    #[must_use]
-    pub fn small_view_frustum_points(&self) -> [Point3<f32>; 8] {
-        let camera_matrix_inverse_transpose = self
-            .small_view_proj()
-            .try_inverse()
-            .expect("camera matrix is invertible");
-        [
-            Vector4::new(1.0, 1.0, 1.0, 1.0),
-            Vector4::new(1.0, 1.0, -1.0, 1.0),
-            Vector4::new(1.0, -1.0, 1.0, 1.0),
-            Vector4::new(1.0, -1.0, -1.0, 1.0),
-            Vector4::new(-1.0, 1.0, 1.0, 1.0),
-            Vector4::new(-1.0, 1.0, -1.0, 1.0),
-            Vector4::new(-1.0, -1.0, 1.0, 1.0),
-            Vector4::new(-1.0, -1.0, -1.0, 1.0),
-        ]
-        .map(|v| {
-            let p = camera_matrix_inverse_transpose * v;
-            Point3::from(p.xyz() / p.w)
-        })
     }
 
     #[rustfmt::skip]
@@ -235,8 +199,8 @@ impl Default for FirstPersonCamera {
             aspect: 1.0,
             slow_speed: 3.0,
             fast_speed: 10.0,
-            freeze_small_view_proj: false,
-            small_view_proj: RefCell::new(Matrix4::identity()),
+            near: 0.1,
+            far: 1000.0,
         }
     }
 }

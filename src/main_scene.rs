@@ -45,6 +45,7 @@ pub struct MainScene {
     simulation: Simulation,
     max_depth: usize,
     lights: Vec<DirectionalLight>,
+    frozen_camera: Option<FirstPersonCamera>,
 }
 
 impl MainScene {
@@ -89,6 +90,7 @@ impl MainScene {
             simulation: Simulation::default(),
             max_depth: 5,
             lights: vec![DirectionalLight::new(ctx.gl.as_ref())],
+            frozen_camera: None,
         })
     }
 
@@ -192,6 +194,16 @@ impl MainScene {
             // immovable: true,
             ..Object::new(&self.sphere_mesh, Collider::Sphere(2.0), 20.0)
         });
+        self.objects.push(Object {
+            immovable: true,
+            position: Point3::new(0.0, -10.0, 0.0),
+            mesh_scale: Vector3::new(10000.0, 1.0, 10000.0),
+            ..Object::new(
+                &self.box_mesh,
+                Collider::Box(10000.0, 1.0, 10000.0),
+                1.0,
+            )
+        });
     }
 
     fn preset_spinning_ball(&mut self) {
@@ -240,18 +252,6 @@ impl MainScene {
             immovable: true,
             ..Object::new(&self.box_mesh, Collider::Box(40.0, 10.0, 1.0), 100.0)
         });
-    }
-
-    fn visualize_current_frustum(&mut self) {
-        let camera_bounds = self.camera.small_view_frustum_points();
-        // self.objects.clear();
-        for p in camera_bounds {
-            self.objects.push(Object {
-                position: Point3::from(p.cast()),
-                mesh_scale: Vector3::new(1.0, 1.0, 1.0),
-                ..Object::new(&self.sphere_mesh, Collider::Sphere(1.0), 1.0)
-            });
-        }
     }
 
     fn depth_pass(&self, ctx: &mut Context) {
@@ -363,8 +363,12 @@ impl MainScene {
             ctx.render_state.set_uniform("model", &model_m);
             unsafe { ctx.render_state.draw_mesh(&self.bounding_box_mesh) };
         }
-        let model_m =
-            self.camera.small_view_proj().try_inverse().unwrap() * double_scale;
+        let model_m = self
+            .shadow_camera()
+            .partial_view_proj(0.0, 0.1)
+            .try_inverse()
+            .unwrap()
+            * double_scale;
         ctx.render_state.set_uniform("model", &model_m);
         ctx.render_state.set_uniform("color", &[0.0, 0.75, 0.0]);
         unsafe { ctx.render_state.draw_mesh(&self.bounding_box_mesh) };
@@ -407,13 +411,18 @@ impl MainScene {
         if ui.button("Rotating board").clicked() {
             self.preset_rotating_board();
         }
-        if ui.button("Visualize current frustum").clicked() {
-            self.visualize_current_frustum();
-        }
         ui.checkbox(&mut self.depth_pass, "Depth pass");
         ui.checkbox(&mut self.draw_phong, "Draw objects");
         ui.checkbox(&mut self.draw_debug, "Draw bounds");
-        ui.checkbox(self.camera.freeze_small_view_proj_mut(), "Freeze shadows");
+        if ui
+            .checkbox(&mut self.frozen_camera.is_some(), "Freeze shadow camera")
+            .clicked()
+        {
+            self.frozen_camera = match self.frozen_camera {
+                Some(_) => None,
+                None => Some(self.camera.clone()),
+            };
+        }
         ui.checkbox(&mut self.draw_shadow_frustums, "Draw shadow frustums");
         ui.add(
             DragValue::new(&mut self.max_depth)
@@ -493,6 +502,10 @@ impl MainScene {
             total_directional_energy + total_rotational_energy
         ));
     }
+
+    fn shadow_camera(&self) -> &FirstPersonCamera {
+        self.frozen_camera.as_ref().unwrap_or(&self.camera)
+    }
 }
 
 impl Scene for MainScene {
@@ -522,10 +535,13 @@ impl Scene for MainScene {
             } else {
                 ctx.gl.depth_func(glow::LESS);
             }
+            let shadow_camera_inv = self
+                .shadow_camera()
+                .partial_view_proj(0.0, 0.1)
+                .try_inverse()
+                .unwrap();
             for light in &mut self.lights {
-                light.update(
-                    &self.camera.small_view_proj().try_inverse().unwrap(),
-                );
+                light.update(&shadow_camera_inv);
             }
             self.draw_shadow(ctx);
             if self.draw_phong {
