@@ -17,7 +17,7 @@ use crate::collider::Collider;
 use crate::mesh::{DrawMesh, Mesh};
 use crate::object::Object;
 use crate::render_state::SetUniform;
-use crate::shader_program::{ShaderProgram, UseShaderProgram};
+use crate::shader_program::ShaderProgram;
 use crate::simulation::Simulation;
 use crate::vertex::PVertex;
 use crate::{context::Context, scene::Scene, vertex::PNVertex};

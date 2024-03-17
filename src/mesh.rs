@@ -92,11 +92,11 @@ pub trait DrawMesh {
     /// # Safety
     /// Should only be called if a shader with matching vertex layout is being
     /// used.
-    unsafe fn draw_mesh<V: Vertex>(&self, mesh: &Mesh<V>);
+    unsafe fn draw_mesh<V: Vertex>(&mut self, mesh: &Mesh<V>);
 }
 
 impl DrawMesh for Context {
-    unsafe fn draw_mesh<V: Vertex>(&self, mesh: &Mesh<V>) {
+    unsafe fn draw_mesh<V: Vertex>(&mut self, mesh: &Mesh<V>) {
         unsafe {
             self.gl.bind_vertex_array(Some(mesh.vertex_array));
             self.gl.draw_elements(
@@ -111,16 +111,15 @@ impl DrawMesh for Context {
 }
 
 impl DrawMesh for RenderState {
-    unsafe fn draw_mesh<V: Vertex>(&self, mesh: &Mesh<V>) {
+    unsafe fn draw_mesh<V: Vertex>(&mut self, mesh: &Mesh<V>) {
+        self.set_vertex_array(mesh.vertex_array);
         unsafe {
-            self.gl().bind_vertex_array(Some(mesh.vertex_array));
             self.gl().draw_elements(
                 mesh.primitive as u32,
                 mesh.count,
                 glow::UNSIGNED_SHORT,
                 0,
             );
-            self.gl().bind_vertex_array(None);
         }
     }
 }

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use glow::{
     HasContext, NativeFramebuffer, NativeProgram, NativeTexture,
-    NativeUniformLocation,
+    NativeUniformLocation, NativeVertexArray,
 };
 use nalgebra::{Matrix4, Vector3, Vector4};
 
@@ -16,6 +16,7 @@ pub struct RenderState {
     cull_face: u32,
     line_width: f32,
     program: Option<NativeProgram>,
+    vertex_array: Option<NativeVertexArray>,
 }
 
 impl RenderState {
@@ -27,6 +28,7 @@ impl RenderState {
             cull_face: glow::BACK,
             line_width: 1.0,
             program: None,
+            vertex_array: None,
         };
         unsafe {
             let [x, y, w, h] = this.viewport;
@@ -36,6 +38,7 @@ impl RenderState {
             this.gl.cull_face(this.cull_face);
             this.gl.line_width(this.line_width);
             this.gl.use_program(this.program);
+            this.gl.bind_vertex_array(this.vertex_array);
         }
         this
     }
@@ -60,6 +63,13 @@ impl RenderState {
         // if self.program != Some(program.program) {
         self.program = Some(program.program);
         unsafe { self.gl.use_program(self.program) };
+        // }
+    }
+
+    pub fn set_vertex_array(&mut self, va: NativeVertexArray) {
+        // if self.vertex_array != Some(va) {
+        self.vertex_array = Some(va);
+        unsafe { self.gl.bind_vertex_array(self.vertex_array) };
         // }
     }
 
