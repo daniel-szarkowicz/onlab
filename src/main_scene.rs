@@ -1,27 +1,26 @@
 use std::rc::Rc;
 
 use anyhow::Result;
+
 use egui::{DragValue, Ui, Window};
-use glow::{HasContext, NativeFramebuffer, NativeTexture};
+use glow::HasContext;
 use glutin::surface::GlSurface;
-use nalgebra::{
-    Matrix4, Orthographic3, Point3, Rotation3, Scale3, Translation3, Vector3,
-    Vector4,
-};
+use nalgebra::{Point3, Rotation3, Scale3, Translation3, Vector3};
 use rand::Rng;
 use winit::event::{ElementState, Event, WindowEvent};
 use winit::window::CursorGrabMode;
 
 use crate::camera::FirstPersonCamera;
 use crate::collider::Collider;
+use crate::light::DirectionalLight;
 use crate::mesh::{DrawMesh, Mesh};
+use crate::meshes;
 use crate::object::Object;
 use crate::render_state::SetUniform;
 use crate::shader_program::ShaderProgram;
 use crate::simulation::Simulation;
 use crate::vertex::PVertex;
 use crate::{context::Context, scene::Scene, vertex::PNVertex};
-use crate::{meshes, shadow_util};
 
 #[derive(Debug)]
 #[allow(clippy::struct_excessive_bools)]
@@ -45,9 +44,7 @@ pub struct MainScene {
     paused: bool,
     simulation: Simulation,
     max_depth: usize,
-    light_pos: Vector4<f32>,
-    shadow_buffer: NativeFramebuffer,
-    shadow_map: NativeTexture,
+    lights: Vec<DirectionalLight>,
 }
 
 impl MainScene {
@@ -71,8 +68,6 @@ impl MainScene {
             "src/simple-vs.glsl",
             "src/simple_color-fs.glsl",
         )?;
-        let (shadow_buffer, shadow_map) =
-            shadow_util::create_buffer(ctx.gl.as_ref());
         Ok(Self {
             objects,
             depth_pass_program,
@@ -93,9 +88,7 @@ impl MainScene {
             paused: false,
             simulation: Simulation::default(),
             max_depth: 5,
-            light_pos: Vector4::new(1.0, 1.0, -1.0, 0.0),
-            shadow_buffer,
-            shadow_map,
+            lights: vec![DirectionalLight::new(ctx.gl.as_ref())],
         })
     }
 
@@ -271,26 +264,12 @@ impl MainScene {
         }
     }
 
-    fn draw_shadow(
-        &self,
-        ctx: &mut Context,
-        light_space_matrix: &Matrix4<f32>,
-    ) {
-        ctx.render_state.set_viewport(
-            0,
-            0,
-            shadow_util::SHADOW_WIDTH,
-            shadow_util::SHADOW_HEIGHT,
-        );
-        ctx.render_state.set_framebuffer(self.shadow_buffer);
-        ctx.render_state.set_cull_face(glow::FRONT);
-        unsafe { ctx.render_state.gl().clear(glow::DEPTH_BUFFER_BIT) };
-        ctx.render_state.set_program(&self.depth_pass_program);
-        ctx.render_state
-            .set_uniform("view_proj", light_space_matrix);
-        for object in &self.objects {
-            ctx.render_state.set_uniform("model", &object.model());
-            unsafe { ctx.render_state.draw_mesh(&object.mesh) };
+    fn draw_shadow(&mut self, ctx: &mut Context) {
+        unsafe {
+            ctx.render_state.set_program(&self.depth_pass_program);
+            for light in &mut self.lights {
+                light.render_shadows(&mut ctx.render_state, &self.objects);
+            }
         }
         ctx.render_state.set_cull_face(glow::BACK);
         ctx.render_state.unset_framebuffer();
@@ -302,22 +281,28 @@ impl MainScene {
         );
     }
 
-    fn draw_phong(&self, ctx: &mut Context, light_space_matrix: &Matrix4<f32>) {
+    fn draw_phong(&self, ctx: &mut Context) {
         ctx.render_state.set_program(&self.phong_shader_program);
+        // TODO: handle multiple lights
         unsafe {
             ctx.render_state.set_texture_2d_uniform(
                 "shadow_map",
                 0,
-                self.shadow_map,
+                *self.lights[0].native_texture(),
             );
         }
         ctx.render_state
-            .set_uniform("light_space_matrix", light_space_matrix);
+            .set_uniform("light_space_matrix", self.lights[0].view_proj());
         ctx.render_state
             .set_uniform("view_proj", &self.camera.view_proj());
         ctx.render_state
             .set_uniform("wEye", &self.camera.position().coords);
-        ctx.render_state.set_uniform("wLiPos", &self.light_pos);
+        ctx.render_state
+            .set_uniform("wLiPos", &-self.lights[0].direction().push(0.0));
+        ctx.render_state
+            .set_uniform("La", self.lights[0].ambient_color());
+        ctx.render_state
+            .set_uniform("Le", self.lights[0].emissive_color());
         for object in &self.objects {
             let model_m = object.model();
             ctx.render_state.set_uniform("model", &model_m);
@@ -361,10 +346,13 @@ impl MainScene {
             .set_uniform("view_proj", &self.camera.view_proj());
         ctx.render_state.set_line_width(1.0);
         let double_scale = Scale3::new(2.0, 2.0, 2.0).to_homogeneous();
-        let model_m = self.light_matrix().try_inverse().unwrap() * double_scale;
-        ctx.render_state.set_uniform("model", &model_m);
         ctx.render_state.set_uniform("color", &[0.75, 0.0, 0.0]);
-        unsafe { ctx.render_state.draw_mesh(&self.bounding_box_mesh) };
+        for light in &self.lights {
+            let model_m =
+                light.view_proj().try_inverse().unwrap() * double_scale;
+            ctx.render_state.set_uniform("model", &model_m);
+            unsafe { ctx.render_state.draw_mesh(&self.bounding_box_mesh) };
+        }
         let model_m =
             self.camera.small_view_proj().try_inverse().unwrap() * double_scale;
         ctx.render_state.set_uniform("model", &model_m);
@@ -428,11 +416,18 @@ impl MainScene {
                 .clamp_range(-1.0..=2.0)
                 .speed(0.005),
         );
-        if ui.button("Set light direction").clicked() {
-            self.light_pos = -self.camera.look_direction().push(0.0);
-        }
-        if ui.button("Set light position").clicked() {
-            self.light_pos = self.camera.position().coords.push(1.0);
+        for (i, light) in self.lights.iter_mut().enumerate() {
+            if ui.button(format!("Set light {i} direction")).clicked() {
+                light.set_direction(&self.camera.look_direction());
+            }
+            ui.horizontal(|ui| {
+                ui.label(format!("Light {i} ambient color: "));
+                ui.color_edit_button_rgb(light.ambient_color_mut());
+            });
+            ui.horizontal(|ui| {
+                ui.label(format!("Light {i} emissive color: "));
+                ui.color_edit_button_rgb(light.emissive_color_mut());
+            });
         }
         ui.add(
             DragValue::new(&mut self.simulation.mu)
@@ -473,45 +468,6 @@ impl MainScene {
             total_directional_energy + total_rotational_energy
         ));
     }
-
-    fn light_matrix(&self) -> Matrix4<f32> {
-        let camera_bounds = self.camera.small_view_frustum_points();
-        assert!(self.light_pos.w.abs() < f32::EPSILON);
-        let light_dir = (-self.light_pos.xyz()).normalize();
-        let light_left =
-            light_dir.cross(&Vector3::new(1.0, 0.0, 0.0)).normalize();
-        let light_up = light_left.cross(&light_dir).normalize();
-        let (x_max, x_min) = camera_bounds
-            .iter()
-            .map(|v| light_left.dot(&v.coords))
-            .fold((f32::MIN, f32::MAX), |(max, min), elem| {
-                (max.max(elem), min.min(elem))
-            });
-        let (y_max, y_min) = camera_bounds
-            .iter()
-            .map(|v| light_up.dot(&v.coords))
-            .fold((f32::MIN, f32::MAX), |(max, min), elem| {
-                (max.max(elem), min.min(elem))
-            });
-        let (z_max, z_min) = camera_bounds
-            .iter()
-            .map(|v| light_dir.dot(&v.coords))
-            .fold((f32::MIN, f32::MAX), |(max, min), elem| {
-                (max.max(elem), min.min(elem))
-            });
-        let light_proj = Orthographic3::new(
-            x_min,
-            x_max,
-            y_min,
-            y_max,
-            z_min.mul_add(2.0, -z_max),
-            z_max,
-        )
-        .to_homogeneous();
-        let light_view =
-            Rotation3::look_at_rh(&light_dir, &light_up).to_homogeneous();
-        light_proj * light_view
-    }
 }
 
 impl Scene for MainScene {
@@ -541,10 +497,11 @@ impl Scene for MainScene {
             } else {
                 ctx.gl.depth_func(glow::LESS);
             }
-            let light_space_matrix = self.light_matrix();
-            self.draw_shadow(ctx, &light_space_matrix);
+            self.lights[0]
+                .update(&self.camera.small_view_proj().try_inverse().unwrap());
+            self.draw_shadow(ctx);
             if self.draw_phong {
-                self.draw_phong(ctx, &light_space_matrix);
+                self.draw_phong(ctx);
             }
             ctx.gl.depth_func(glow::LESS);
             if self.draw_debug {
