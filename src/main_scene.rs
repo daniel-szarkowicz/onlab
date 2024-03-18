@@ -12,7 +12,7 @@ use winit::window::CursorGrabMode;
 
 use crate::camera::FirstPersonCamera;
 use crate::collider::Collider;
-use crate::light::DirectionalLight;
+use crate::light::{self, DirectionalLight};
 use crate::mesh::{DrawMesh, Mesh};
 use crate::meshes;
 use crate::object::Object;
@@ -295,6 +295,8 @@ impl MainScene {
             "directional_light_count",
             &(self.lights.len() as u32),
         );
+        ctx.render_state
+            .set_uniform("shadow_layer_count", &(light::SHADOW_LAYERS as u32));
         for (i, light) in self.lights.iter().enumerate() {
             let prefix = format!("directional_lights[{i}]");
             ctx.render_state
@@ -307,8 +309,10 @@ impl MainScene {
                 &format!("{prefix}.emissive_color"),
                 light.emissive_color(),
             );
-            ctx.render_state
-                .set_uniform(&format!("{prefix}.matrix"), light.view_proj());
+            for (j, view_proj) in light.view_projs().iter().enumerate() {
+                ctx.render_state
+                    .set_uniform(&format!("{prefix}.matrices[{j}]"), view_proj);
+            }
             unsafe {
                 ctx.render_state.set_texture_2d_array_uniform(
                     &format!("{prefix}.shadow_map"),
@@ -362,24 +366,29 @@ impl MainScene {
         ctx.render_state.set_program(&self.debug_shader_program);
         ctx.render_state
             .set_uniform("view_proj", &self.camera.view_proj());
-        ctx.render_state.set_line_width(1.0);
+        ctx.render_state.set_line_width(2.0);
         let double_scale = Scale3::new(2.0, 2.0, 2.0).to_homogeneous();
         ctx.render_state.set_uniform("color", &[0.75, 0.0, 0.0]);
         for light in &self.lights {
-            let model_m =
-                light.view_proj().try_inverse().unwrap() * double_scale;
+            for view_proj in light.view_projs() {
+                let model_m = view_proj.try_inverse().unwrap() * double_scale;
+                ctx.render_state.set_uniform("model", &model_m);
+                unsafe { ctx.render_state.draw_mesh(&self.bounding_box_mesh) };
+            }
+        }
+        for start_end in light::LAYER_SPLITS.windows(2) {
+            let start = start_end[0];
+            let end = start_end[1];
+            let model_m = self
+                .shadow_camera()
+                .partial_view_proj(start, end)
+                .try_inverse()
+                .unwrap()
+                * double_scale;
             ctx.render_state.set_uniform("model", &model_m);
+            ctx.render_state.set_uniform("color", &[0.0, 0.75, 0.0]);
             unsafe { ctx.render_state.draw_mesh(&self.bounding_box_mesh) };
         }
-        let model_m = self
-            .shadow_camera()
-            .partial_view_proj(0.0, 0.1)
-            .try_inverse()
-            .unwrap()
-            * double_scale;
-        ctx.render_state.set_uniform("model", &model_m);
-        ctx.render_state.set_uniform("color", &[0.0, 0.75, 0.0]);
-        unsafe { ctx.render_state.draw_mesh(&self.bounding_box_mesh) };
     }
 
     fn draw_hud(&self, ctx: &mut Context) {
@@ -543,13 +552,10 @@ impl Scene for MainScene {
             } else {
                 ctx.gl.depth_func(glow::LESS);
             }
-            let shadow_camera_inv = self
-                .shadow_camera()
-                .partial_view_proj(0.0, 0.1)
-                .try_inverse()
-                .unwrap();
+            let shadow_camera =
+                self.frozen_camera.as_ref().unwrap_or(&self.camera);
             for light in &mut self.lights {
-                light.update(&shadow_camera_inv);
+                light.update(shadow_camera);
             }
             self.draw_shadow(ctx);
             if self.draw_phong {

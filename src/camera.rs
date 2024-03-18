@@ -197,8 +197,8 @@ impl Default for FirstPersonCamera {
             up: false,
             down: false,
             aspect: 1.0,
-            slow_speed: 3.0,
-            fast_speed: 10.0,
+            slow_speed: 10.0,
+            fast_speed: 20.0,
             near: 0.1,
             far: 1000.0,
         }

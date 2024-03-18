@@ -1,17 +1,19 @@
 #version 430
 
-uniform mat4 view_proj;
+#define MAX_LAYERS 4
+uniform uint layer_count;
+uniform mat4 view_projs[MAX_LAYERS];
 
 layout(triangles) in;
-layout(triangle_strip, max_vertices = 3) out;
+layout(triangle_strip, max_vertices = 12) out;
 
 void main() {
-    gl_Layer = 0;
-    gl_Position = view_proj * gl_in[0].gl_Position;
-    EmitVertex();
-    gl_Position = view_proj * gl_in[1].gl_Position;
-    EmitVertex();
-    gl_Position = view_proj * gl_in[2].gl_Position;
-    EmitVertex();
-    EndPrimitive();
+    for (uint i = 0; i < layer_count; ++i) {
+        gl_Layer = int(i);
+        for (uint j = 0; j < 3; ++j) {
+            gl_Position = view_projs[i] * gl_in[j].gl_Position;
+            EmitVertex();
+        }
+        EndPrimitive();
+    }
 }

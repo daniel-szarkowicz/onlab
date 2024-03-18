@@ -4,6 +4,7 @@ use nalgebra::{Matrix4, Orthographic3, Rotation3, Vector3, Vector4};
 const UP: Vector3<f32> = Vector3::new(0.0, 1.0, 0.0);
 
 use crate::{
+    camera::FirstPersonCamera,
     mesh::DrawMesh,
     object::Object,
     render_state::{RenderState, SetUniform},
@@ -11,7 +12,14 @@ use crate::{
 
 pub const SHADOW_WIDTH: i32 = 2048;
 pub const SHADOW_HEIGHT: i32 = SHADOW_WIDTH;
-pub const SHADOW_LAYERS: i32 = 1;
+pub const SHADOW_LAYERS: i32 = 3;
+#[allow(clippy::assertions_on_constants)]
+const _: () = assert!(
+    SHADOW_LAYERS <= 4,
+    "current shaders only support up to 8 shadow layers"
+);
+pub const LAYER_SPLITS: [f32; SHADOW_LAYERS as usize + 1] =
+    [0.0, 0.05, 0.2, 0.5];
 
 #[derive(Debug)]
 pub struct DirectionalLight {
@@ -20,7 +28,7 @@ pub struct DirectionalLight {
     shadow_map: NativeTexture,
     ambient_color: [f32; 3],
     emissive_color: [f32; 3],
-    view_proj: Matrix4<f32>,
+    view_projs: [Matrix4<f32>; SHADOW_LAYERS as usize],
 }
 
 impl DirectionalLight {
@@ -79,10 +87,9 @@ impl DirectionalLight {
                 &border_color,
             );
             gl.bind_framebuffer(glow::FRAMEBUFFER, Some(shadow_buffer));
-            gl.framebuffer_texture_2d(
+            gl.framebuffer_texture(
                 glow::FRAMEBUFFER,
                 glow::DEPTH_ATTACHMENT,
-                glow::TEXTURE_2D_ARRAY,
                 Some(shadow_map),
                 0,
             );
@@ -97,54 +104,60 @@ impl DirectionalLight {
             shadow_map,
             ambient_color: [0.3; 3],
             emissive_color: [0.7; 3],
-            view_proj: Matrix4::identity(),
+            view_projs: [Matrix4::identity(); SHADOW_LAYERS as usize],
         }
     }
 
-    pub fn update(&mut self, camera_inverse: &Matrix4<f32>) {
-        let camera_frustum_points = [
-            Vector4::new(1.0, 1.0, 1.0, 1.0),
-            Vector4::new(1.0, 1.0, -1.0, 1.0),
-            Vector4::new(1.0, -1.0, 1.0, 1.0),
-            Vector4::new(1.0, -1.0, -1.0, 1.0),
-            Vector4::new(-1.0, 1.0, 1.0, 1.0),
-            Vector4::new(-1.0, 1.0, -1.0, 1.0),
-            Vector4::new(-1.0, -1.0, 1.0, 1.0),
-            Vector4::new(-1.0, -1.0, -1.0, 1.0),
-        ]
-        .map(|v| {
-            let p = camera_inverse * v;
-            p.xyz() / p.w
-        });
+    pub fn update(&mut self, camera: &FirstPersonCamera) {
         let left = self.direction.cross(&UP).normalize();
         let up = left.cross(&self.direction).normalize();
-        let minmax = |dir: &Vector3<f32>| {
-            camera_frustum_points
-                .iter()
-                .map(|v| dir.dot(v))
-                .fold((f32::MAX, f32::MIN), |(min, max), elem| {
-                    (min.min(elem), max.max(elem))
-                })
-        };
-        let (x_min, x_max) = minmax(&left);
-        let (y_min, y_max) = minmax(&up);
-        let (z_min, z_max) = minmax(&self.direction);
-        let proj = Orthographic3::new(
-            x_min,
-            x_max,
-            y_min,
-            y_max,
-            z_min.mul_add(2.0, -z_max),
-            z_max,
-        )
-        .to_homogeneous();
         let view = Rotation3::look_at_rh(&self.direction, &up).to_homogeneous();
-        self.view_proj = proj * view;
+        for (i, start_end) in LAYER_SPLITS.windows(2).enumerate() {
+            let start = start_end[0];
+            let end = start_end[1];
+            let camera_inverse =
+                camera.partial_view_proj(start, end).try_inverse().unwrap();
+            let camera_frustum_points = [
+                Vector4::new(1.0, 1.0, 1.0, 1.0),
+                Vector4::new(1.0, 1.0, -1.0, 1.0),
+                Vector4::new(1.0, -1.0, 1.0, 1.0),
+                Vector4::new(1.0, -1.0, -1.0, 1.0),
+                Vector4::new(-1.0, 1.0, 1.0, 1.0),
+                Vector4::new(-1.0, 1.0, -1.0, 1.0),
+                Vector4::new(-1.0, -1.0, 1.0, 1.0),
+                Vector4::new(-1.0, -1.0, -1.0, 1.0),
+            ]
+            .map(|v| {
+                let p = camera_inverse * v;
+                p.xyz() / p.w
+            });
+            let minmax = |dir: &Vector3<f32>| {
+                camera_frustum_points
+                    .iter()
+                    .map(|v| dir.dot(v))
+                    .fold((f32::MAX, f32::MIN), |(min, max), elem| {
+                        (min.min(elem), max.max(elem))
+                    })
+            };
+            let (x_min, x_max) = minmax(&left);
+            let (y_min, y_max) = minmax(&up);
+            let (z_min, z_max) = minmax(&self.direction);
+            let proj = Orthographic3::new(
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+                z_min.mul_add(2.0, -z_max),
+                z_max,
+            )
+            .to_homogeneous();
+            self.view_projs[i] = proj * view;
+        }
     }
 
     #[must_use]
-    pub const fn view_proj(&self) -> &Matrix4<f32> {
-        &self.view_proj
+    pub const fn view_projs(&self) -> &[Matrix4<f32>] {
+        &self.view_projs
     }
 
     pub fn set_direction(&mut self, direction: &Vector3<f32>) {
@@ -198,7 +211,10 @@ impl DirectionalLight {
         render_state.set_cull_face(glow::FRONT);
         unsafe { render_state.gl().clear(glow::DEPTH_BUFFER_BIT) };
         // render_state.set_program <- this was already done by the caller
-        render_state.set_uniform("view_proj", &self.view_proj);
+        render_state.set_uniform("layer_count", &(SHADOW_LAYERS as u32));
+        for (i, view_proj) in self.view_projs.iter().enumerate() {
+            render_state.set_uniform(&format!("view_projs[{i}]"), view_proj);
+        }
         for o in objects {
             render_state.set_uniform("model", &o.model());
             unsafe { render_state.draw_mesh(&o.mesh) };

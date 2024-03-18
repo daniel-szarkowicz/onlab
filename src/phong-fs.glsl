@@ -5,33 +5,45 @@ uniform vec3 ks = vec3(0.1, 0.1, 0.2);
 uniform vec3 ka = vec3(1, 1, 1);
 uniform float shine = 100;
 
+#define MAX_LIGHTS 4
+#define MAX_LAYERS 4
 uniform uint directional_light_count;
+uniform uint shadow_layer_count;
 
 uniform struct {
   vec3 direction;
   vec3 ambient_color;
   vec3 emissive_color;
-  mat4 matrix;
+  mat4 matrices[MAX_LAYERS];
   sampler2DArrayShadow shadow_map;
-} directional_lights[8];
+} directional_lights[MAX_LIGHTS];
 
 in vec3 wNormal;
 in vec3 wView;
-in vec4 directional_shadow_map_coords[8];
+in vec4 directional_shadow_map_coords[MAX_LIGHTS][MAX_LAYERS];
 
 out vec4 frag_color;
 
 float calculate_shadow(uint i, vec3 normal, vec3 light_dir) {
-  vec4 map_coords = directional_shadow_map_coords[i];
+  vec4 map_coords;
+  uint j = 0;
+  do {
+    map_coords = directional_shadow_map_coords[i][j];
+    ++j;
+  } while ((map_coords.x < 0.0 || map_coords.x > 1.0
+    || map_coords.y < 0.0 || map_coords.y > 1.0
+    || map_coords.w < 0.0 || map_coords.w > 1.0)
+    && j < shadow_layer_count);
   if (map_coords.x < 0.0 || map_coords.x > 1.0
     || map_coords.y < 0.0 || map_coords.y > 1.0
     || map_coords.w < 0.0 || map_coords.w > 1.0) {
-    // no shadow if outside shadow map
+    // no shadow outside shadow map
     return 0.0;
   }
   // it might be necessary to offset map_coords.w by a small bias value
   // float bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.000);
   float shadow = texture(directional_lights[i].shadow_map, map_coords);
+  // return shadow;
   float samples = 8;
   float radius = 2.0/1000.0;
   float pi = 3.141592653589793;
