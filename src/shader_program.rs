@@ -66,6 +66,42 @@ impl<V: Vertex> ShaderProgram<V> {
             phantom: PhantomData,
         })
     }
+
+    pub fn with_geometry(
+        ctx: &Context,
+        vertex_file: impl AsRef<Path>,
+        geometry_file: impl AsRef<Path>,
+        fragment_file: impl AsRef<Path>,
+    ) -> Result<Self> {
+        let program = unsafe {
+            let gl = &ctx.gl;
+            let vertex = load_shader(gl, vertex_file, glow::VERTEX_SHADER)?;
+            let geometry =
+                load_shader(gl, geometry_file, glow::GEOMETRY_SHADER)?;
+            let fragment =
+                load_shader(gl, fragment_file, glow::FRAGMENT_SHADER)?;
+
+            let program = gl.create_program().map_err(ShaderProgramError)?;
+            gl.attach_shader(program, vertex);
+            gl.attach_shader(program, geometry);
+            gl.attach_shader(program, fragment);
+            gl.link_program(program);
+            if !gl.get_program_link_status(program) {
+                Err(ShaderProgramError(format!(
+                    "Shader program was not linked:\n{}",
+                    gl.get_program_info_log(program)
+                )))?;
+            }
+            if let Err(e) = V::validate_layout(gl, program) {
+                eprintln!("Shader warning: {e}");
+            };
+            program
+        };
+        Ok(Self {
+            program,
+            phantom: PhantomData,
+        })
+    }
 }
 
 #[derive(Debug)]

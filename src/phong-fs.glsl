@@ -12,26 +12,26 @@ uniform struct {
   vec3 ambient_color;
   vec3 emissive_color;
   mat4 matrix;
-  sampler2DShadow shadow_map;
+  sampler2DArrayShadow shadow_map;
 } directional_lights[8];
 
 in vec3 wNormal;
 in vec3 wView;
-in vec3 directional_shadow_map_coords[8];
+in vec4 directional_shadow_map_coords[8];
 
 out vec4 frag_color;
 
 float calculate_shadow(uint i, vec3 normal, vec3 light_dir) {
-  vec3 map_coords = directional_shadow_map_coords[i];
+  vec4 map_coords = directional_shadow_map_coords[i];
   if (map_coords.x < 0.0 || map_coords.x > 1.0
     || map_coords.y < 0.0 || map_coords.y > 1.0
-    || map_coords.z < 0.0 || map_coords.z > 1.0) {
+    || map_coords.w < 0.0 || map_coords.w > 1.0) {
     // no shadow if outside shadow map
     return 0.0;
   }
-  // it might be necessary to offset map_coords.z by a small bias value
+  // it might be necessary to offset map_coords.w by a small bias value
   // float bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.000);
-  float shadow = texture(directional_lights[i].shadow_map, map_coords.xyz);
+  float shadow = texture(directional_lights[i].shadow_map, map_coords);
   float samples = 8;
   float radius = 2.0/1000.0;
   float pi = 3.141592653589793;
@@ -42,7 +42,7 @@ float calculate_shadow(uint i, vec3 normal, vec3 light_dir) {
       float x = sqrt(u) * cos(2*pi * v);
       float y = sqrt(u) * sin(2*pi * v);
       shadow += texture(
-        directional_lights[i].shadow_map, map_coords.xyz + vec3(x, y, 0) * radius
+        directional_lights[i].shadow_map, map_coords + vec4(x, y, 0, 0) * radius
       );
     }
     // if this is the first round and everything was/wasn't shadowed

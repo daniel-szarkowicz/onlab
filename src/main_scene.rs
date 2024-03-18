@@ -30,6 +30,7 @@ pub struct MainScene {
     phong_shader_program: ShaderProgram<PNVertex>,
     debug_shader_program: ShaderProgram<PVertex>,
     hud_shader_program: ShaderProgram<PVertex>,
+    shadow_shader_program: ShaderProgram<PNVertex>,
     depth_pass: bool,
     draw_phong: bool,
     draw_debug: bool,
@@ -69,12 +70,19 @@ impl MainScene {
             "src/simple-vs.glsl",
             "src/simple_color-fs.glsl",
         )?;
+        let shadow_shader_program = ShaderProgram::with_geometry(
+            ctx,
+            "src/shadow-vs.glsl",
+            "src/shadow-gs.glsl",
+            "src/empty-fs.glsl",
+        )?;
         Ok(Self {
             objects,
             depth_pass_program,
             phong_shader_program,
             debug_shader_program,
             hud_shader_program,
+            shadow_shader_program,
             depth_pass: true,
             draw_phong: true,
             draw_debug: false,
@@ -266,7 +274,7 @@ impl MainScene {
 
     fn draw_shadow(&mut self, ctx: &mut Context) {
         unsafe {
-            ctx.render_state.set_program(&self.depth_pass_program);
+            ctx.render_state.set_program(&self.shadow_shader_program);
             for light in &mut self.lights {
                 light.render_shadows(&mut ctx.render_state, &self.objects);
             }
@@ -302,7 +310,7 @@ impl MainScene {
             ctx.render_state
                 .set_uniform(&format!("{prefix}.matrix"), light.view_proj());
             unsafe {
-                ctx.render_state.set_texture_2d_uniform(
+                ctx.render_state.set_texture_2d_array_uniform(
                     &format!("{prefix}.shadow_map"),
                     i as u32,
                     *light.native_texture(),

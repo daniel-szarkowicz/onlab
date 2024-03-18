@@ -124,9 +124,9 @@ impl RenderState {
     /// # Safety
     /// `texture_index` should be different for every texture used in the
     /// same draw call.
-    /// `texture` should be backed by a `glow::TEXTURE_2D`.
+    /// `texture` should be backed by a `glow::TEXTURE_2D_ARRAY`.
     #[deprecated = "TODO: implement proper texture handling"]
-    pub unsafe fn set_texture_2d_uniform(
+    pub unsafe fn set_texture_2d_array_uniform(
         &mut self,
         name: &str,
         texture_index: u32,
@@ -135,7 +135,7 @@ impl RenderState {
         assert!(texture_index < 16);
         unsafe {
             self.gl.active_texture(glow::TEXTURE0 + texture_index);
-            self.gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+            self.gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(texture));
             #[allow(clippy::cast_possible_wrap)]
             self.set_uniform(name, &(texture_index as i32));
         }
