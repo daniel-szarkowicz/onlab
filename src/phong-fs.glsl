@@ -12,7 +12,7 @@ uniform struct {
   vec3 ambient_color;
   vec3 emissive_color;
   mat4 matrix;
-  sampler2D shadow_map;
+  sampler2DShadow shadow_map;
 } directional_lights[8];
 
 in vec3 wNormal;
@@ -29,11 +29,9 @@ float calculate_shadow(uint i, vec3 normal, vec3 light_dir) {
     // no shadow if outside shadow map
     return 0.0;
   }
-  // it might be necessary to offset the current depth by a bias value
+  // it might be necessary to offset map_coords.z by a small bias value
   // float bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.000);
-  float current_depth = map_coords.z;
-  float middle_shadow_depth = texture(directional_lights[i].shadow_map, map_coords.xy).r;
-  float shadow = current_depth > middle_shadow_depth ? 1.0 : 0.0;
+  float shadow = texture(directional_lights[i].shadow_map, map_coords.xyz);
   float samples = 8;
   float radius = 2.0/1000.0;
   float pi = 3.141592653589793;
@@ -43,10 +41,9 @@ float calculate_shadow(uint i, vec3 normal, vec3 light_dir) {
       float v = m/samples;
       float x = sqrt(u) * cos(2*pi * v);
       float y = sqrt(u) * sin(2*pi * v);
-      float shadow_depth = texture(
-        directional_lights[i].shadow_map, map_coords.xy + vec2(x, y) * radius
-      ).r;
-      shadow += current_depth > shadow_depth ? 1.0 : 0.0;
+      shadow += texture(
+        directional_lights[i].shadow_map, map_coords.xyz + vec3(x, y, 0) * radius
+      );
     }
     // if this is the first round and everything was/wasn't shadowed
     // then very likely the rest would be the same, so we don't need to check

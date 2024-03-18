@@ -7,7 +7,7 @@ uniform struct {
   vec3 ambient_color;
   vec3 emissive_color;
   mat4 matrix;
-  sampler2D shadow_map;
+  sampler2DShadow shadow_map;
 } directional_lights[8];
 
 uniform mat4 model;

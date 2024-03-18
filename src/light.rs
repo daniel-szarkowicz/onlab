@@ -43,12 +43,12 @@ impl DirectionalLight {
             gl.tex_parameter_i32(
                 glow::TEXTURE_2D,
                 glow::TEXTURE_MIN_FILTER,
-                glow::NEAREST as i32,
+                glow::LINEAR as i32,
             );
             gl.tex_parameter_i32(
                 glow::TEXTURE_2D,
                 glow::TEXTURE_MAG_FILTER,
-                glow::NEAREST as i32,
+                glow::LINEAR as i32,
             );
             gl.tex_parameter_i32(
                 glow::TEXTURE_2D,
@@ -59,6 +59,16 @@ impl DirectionalLight {
                 glow::TEXTURE_2D,
                 glow::TEXTURE_WRAP_T,
                 glow::CLAMP_TO_BORDER as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_COMPARE_MODE,
+                glow::COMPARE_REF_TO_TEXTURE as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_COMPARE_FUNC,
+                glow::GEQUAL as i32,
             );
             let border_color = [1.0, 1.0, 1.0, 1.0];
             gl.tex_parameter_f32_slice(
