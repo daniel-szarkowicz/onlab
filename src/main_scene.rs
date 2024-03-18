@@ -132,8 +132,8 @@ impl MainScene {
         }
         self.objects.push(Object {
             immovable: true,
-            position: Point3::new(0.0, -1.0, 0.0),
-            mesh_scale: Vector3::new(10000.0, 1.0, 10000.0),
+            position: Point3::new(0.0, -10.0, 0.0),
+            mesh_scale: Vector3::new(10000.0, 10.0, 10000.0),
             ..Object::new(
                 &self.box_mesh,
                 Collider::Box(10000.0, 1.0, 10000.0),
@@ -205,8 +205,8 @@ impl MainScene {
         });
         self.objects.push(Object {
             immovable: true,
-            position: Point3::new(0.0, -10.0, 0.0),
-            mesh_scale: Vector3::new(10000.0, 1.0, 10000.0),
+            position: Point3::new(0.0, -15.0, 0.0),
+            mesh_scale: Vector3::new(10000.0, 10.0, 10000.0),
             ..Object::new(
                 &self.box_mesh,
                 Collider::Box(10000.0, 1.0, 10000.0),
