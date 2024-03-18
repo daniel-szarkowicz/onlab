@@ -13,9 +13,7 @@ uniform struct {
 uniform mat4 model;
 uniform mat4 view_proj;
 uniform mat4 model_inv;
-uniform mat4 light_space_matrix;
 
-uniform vec4 wLiPos = vec4(10000, 10000, -10000, 0);
 uniform vec3 wEye;
 
 layout(location = 0) in vec4 vertexPosition;
