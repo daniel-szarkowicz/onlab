@@ -142,15 +142,9 @@ impl DirectionalLight {
             let (x_min, x_max) = minmax(&left);
             let (y_min, y_max) = minmax(&up);
             let (z_min, z_max) = minmax(&self.direction);
-            let proj = Orthographic3::new(
-                x_min,
-                x_max,
-                y_min,
-                y_max,
-                z_min.mul_add(2.0, -z_max),
-                z_max,
-            )
-            .to_homogeneous();
+            let proj =
+                Orthographic3::new(x_min, x_max, y_min, y_max, z_min, z_max)
+                    .to_homogeneous();
             self.view_projs[i] = proj * view;
         }
     }
@@ -209,6 +203,9 @@ impl DirectionalLight {
         render_state.set_viewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         render_state.set_framebuffer(self.shadow_buffer);
         render_state.set_cull_face(glow::FRONT);
+        unsafe {
+            render_state.gl().enable(glow::DEPTH_CLAMP);
+        }
         unsafe { render_state.gl().clear(glow::DEPTH_BUFFER_BIT) };
         // render_state.set_program <- this was already done by the caller
         render_state.set_uniform("layer_count", &(SHADOW_LAYERS as u32));
@@ -218,6 +215,9 @@ impl DirectionalLight {
         for o in objects {
             render_state.set_uniform("model", &o.model());
             unsafe { render_state.draw_mesh(&o.mesh) };
+        }
+        unsafe {
+            render_state.gl().disable(glow::DEPTH_CLAMP);
         }
     }
 }
