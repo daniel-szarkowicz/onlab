@@ -53,7 +53,8 @@ impl MainScene {
     pub fn new(ctx: &Context) -> Result<Self> {
         let objects = vec![];
         let box_mesh = Rc::new(meshes::box_mesh(ctx)?);
-        let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, false)?);
+        // let sphere_mesh = Rc::new(meshes::sphere_mesh(ctx, 16, false)?);
+        let sphere_mesh = Rc::new(meshes::icosphere_mesh(ctx, 2)?);
         let bounding_box_mesh = meshes::bounding_box_mesh(ctx)?;
         let rectangle_mesh = meshes::rectangle_mesh(ctx)?;
         let depth_pass_program =
