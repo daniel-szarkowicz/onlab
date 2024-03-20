@@ -43,8 +43,10 @@ float calculate_shadow(uint i, vec3 normal, vec3 light_dir) {
   }
   // it might be necessary to offset map_coords.w by a small bias value
   // float bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.000);
-  float shadow = float(texture(directional_lights[i].shadow_map, map_coords.xyz).r < map_coords.w);
-  // float shadow = texture(directional_lights[i].shadow_map, map_coords.xyz).r;
+  // float shadow = float(texture(directional_lights[i].shadow_map, map_coords.xyz).r < map_coords.w);
+  float exp_cz = texture(directional_lights[i].shadow_map, map_coords.xyz).r;
+  float exp_minuscd = exp(-80 * ((map_coords.w*2)-1));
+  float shadow = 1-clamp(exp_cz * exp_minuscd, 0, 1);
   return shadow;
   // float samples = 8;
   // float radius = 2.0/1000.0;
