@@ -136,7 +136,7 @@ impl MainScene {
             mesh_scale: Vector3::new(10000.0, 10.0, 10000.0),
             ..Object::new(
                 &self.box_mesh,
-                Collider::Box(10000.0, 1.0, 10000.0),
+                Collider::Box(10000.0, 10.0, 10000.0),
                 1.0,
             )
         });
@@ -209,7 +209,7 @@ impl MainScene {
             mesh_scale: Vector3::new(10000.0, 10.0, 10000.0),
             ..Object::new(
                 &self.box_mesh,
-                Collider::Box(10000.0, 1.0, 10000.0),
+                Collider::Box(10000.0, 10.0, 10000.0),
                 1.0,
             )
         });
