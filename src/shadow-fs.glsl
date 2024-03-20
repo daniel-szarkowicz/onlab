@@ -2,10 +2,10 @@
 
 in float z;
 
-out float frag_depth;
+out float frag_data;
 
 void main() {
     float depth = clamp(z, -1, 1);
-    frag_depth = (depth+1)/2;
+    frag_data = exp(80 * depth);
     gl_FragDepth = (depth+1)/2;
 }
