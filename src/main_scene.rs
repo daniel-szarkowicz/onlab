@@ -75,7 +75,7 @@ impl MainScene {
             ctx,
             "src/shadow-vs.glsl",
             "src/shadow-gs.glsl",
-            "src/empty-fs.glsl",
+            "src/shadow-fs.glsl",
         )?;
         Ok(Self {
             objects,
