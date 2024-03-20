@@ -36,8 +36,8 @@ impl DirectionalLight {
         #[allow(clippy::cast_possible_wrap)]
         let (shadow_buffer, shadow_map) = unsafe {
             let shadow_buffer = gl.create_framebuffer().unwrap();
-            let shadow_map = gl.create_texture().unwrap();
-            gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(shadow_map));
+            let depth_map = gl.create_texture().unwrap();
+            gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(depth_map));
             gl.tex_image_3d(
                 glow::TEXTURE_2D_ARRAY,
                 0,
@@ -47,6 +47,20 @@ impl DirectionalLight {
                 SHADOW_LAYERS,
                 0,
                 glow::DEPTH_COMPONENT,
+                glow::FLOAT,
+                None,
+            );
+            let shadow_map = gl.create_texture().unwrap();
+            gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(shadow_map));
+            gl.tex_image_3d(
+                glow::TEXTURE_2D_ARRAY,
+                0,
+                glow::R32F as i32,
+                SHADOW_WIDTH,
+                SHADOW_HEIGHT,
+                SHADOW_LAYERS,
+                0,
+                glow::RED,
                 glow::FLOAT,
                 None,
             );
@@ -90,10 +104,16 @@ impl DirectionalLight {
             gl.framebuffer_texture(
                 glow::FRAMEBUFFER,
                 glow::DEPTH_ATTACHMENT,
+                Some(depth_map),
+                0,
+            );
+            gl.framebuffer_texture(
+                glow::FRAMEBUFFER,
+                glow::COLOR_ATTACHMENT0,
                 Some(shadow_map),
                 0,
             );
-            gl.draw_buffer(glow::NONE);
+            gl.draw_buffer(glow::COLOR_ATTACHMENT0);
             gl.read_buffer(glow::NONE);
             gl.bind_framebuffer(glow::FRAMEBUFFER, None);
             (shadow_buffer, shadow_map)
@@ -211,6 +231,8 @@ impl DirectionalLight {
             render_state
                 .gl()
                 .clear(glow::DEPTH_BUFFER_BIT | glow::COLOR_BUFFER_BIT);
+            // render_state.gl().enable(glow::DEPTH_TEST);
+            // render_state.gl().depth_func(glow::LEQUAL);
         }
         // render_state.set_program <- this was already done by the caller
         render_state.set_uniform("layer_count", &(SHADOW_LAYERS as u32));
