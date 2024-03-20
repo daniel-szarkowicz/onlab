@@ -223,16 +223,11 @@ impl DirectionalLight {
         render_state.set_viewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         render_state.set_framebuffer(self.shadow_buffer);
         render_state.set_cull_face(glow::FRONT);
-        // unsafe {
-        //     render_state.gl().enable(glow::DEPTH_CLAMP);
-        // }
         unsafe {
-            render_state.gl().clear_color(1.0, 1.0, 1.0, 1.0);
-            render_state
-                .gl()
-                .clear(glow::DEPTH_BUFFER_BIT | glow::COLOR_BUFFER_BIT);
-            // render_state.gl().enable(glow::DEPTH_TEST);
-            // render_state.gl().depth_func(glow::LEQUAL);
+            render_state.gl().enable(glow::DEPTH_CLAMP);
+        }
+        unsafe {
+            render_state.gl().clear(glow::DEPTH_BUFFER_BIT);
         }
         // render_state.set_program <- this was already done by the caller
         render_state.set_uniform("layer_count", &(SHADOW_LAYERS as u32));
@@ -243,8 +238,8 @@ impl DirectionalLight {
             render_state.set_uniform("model", &o.model());
             unsafe { render_state.draw_mesh(&o.mesh) };
         }
-        // unsafe {
-        //     render_state.gl().disable(glow::DEPTH_CLAMP);
-        // }
+        unsafe {
+            render_state.gl().disable(glow::DEPTH_CLAMP);
+        }
     }
 }
