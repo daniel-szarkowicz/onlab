@@ -1,62 +1,55 @@
 use glow::{HasContext, NativeFramebuffer, NativeTexture};
 
-pub const SHADOW_WIDTH: i32 = 2048;
-pub const SHADOW_HEIGHT: i32 = SHADOW_WIDTH;
+use crate::light;
 
 pub fn create_buffer(gl: &glow::Context) -> (NativeFramebuffer, NativeTexture) {
     #[allow(clippy::cast_possible_wrap)]
     unsafe {
-        let depth_framebuffer = gl.create_framebuffer().unwrap();
-        let depth_map = gl.create_texture().unwrap();
-        gl.bind_texture(glow::TEXTURE_2D, Some(depth_map));
-        gl.tex_image_2d(
-            glow::TEXTURE_2D,
+        let framebuffer = gl.create_framebuffer().unwrap();
+        let texture = gl.create_texture().unwrap();
+        gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(texture));
+        gl.tex_image_3d(
+            glow::TEXTURE_2D_ARRAY,
             0,
-            glow::DEPTH_COMPONENT as i32,
-            SHADOW_WIDTH,
-            SHADOW_HEIGHT,
+            glow::R32F as i32,
+            light::SHADOW_WIDTH,
+            light::SHADOW_HEIGHT,
+            light::SHADOW_LAYERS,
             0,
-            glow::DEPTH_COMPONENT,
+            glow::RED,
             glow::FLOAT,
             None,
         );
         gl.tex_parameter_i32(
-            glow::TEXTURE_2D,
+            glow::TEXTURE_2D_ARRAY,
             glow::TEXTURE_MIN_FILTER,
-            glow::NEAREST as i32,
+            glow::LINEAR as i32,
         );
         gl.tex_parameter_i32(
-            glow::TEXTURE_2D,
+            glow::TEXTURE_2D_ARRAY,
             glow::TEXTURE_MAG_FILTER,
-            glow::NEAREST as i32,
+            glow::LINEAR as i32,
         );
         gl.tex_parameter_i32(
-            glow::TEXTURE_2D,
+            glow::TEXTURE_2D_ARRAY,
             glow::TEXTURE_WRAP_S,
-            glow::CLAMP_TO_BORDER as i32,
+            glow::CLAMP_TO_EDGE as i32,
         );
         gl.tex_parameter_i32(
-            glow::TEXTURE_2D,
+            glow::TEXTURE_2D_ARRAY,
             glow::TEXTURE_WRAP_T,
-            glow::CLAMP_TO_BORDER as i32,
+            glow::CLAMP_TO_EDGE as i32,
         );
-        let border_color = [1.0, 1.0, 1.0, 1.0];
-        gl.tex_parameter_f32_slice(
-            glow::TEXTURE_2D,
-            glow::TEXTURE_BORDER_COLOR,
-            &border_color,
-        );
-        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(depth_framebuffer));
-        gl.framebuffer_texture_2d(
+        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
+        gl.framebuffer_texture(
             glow::FRAMEBUFFER,
-            glow::DEPTH_ATTACHMENT,
-            glow::TEXTURE_2D,
-            Some(depth_map),
+            glow::COLOR_ATTACHMENT0,
+            Some(texture),
             0,
         );
-        gl.draw_buffer(glow::NONE);
+        gl.draw_buffer(glow::COLOR_ATTACHMENT0);
         gl.read_buffer(glow::NONE);
         gl.bind_framebuffer(glow::FRAMEBUFFER, None);
-        (depth_framebuffer, depth_map)
+        (framebuffer, texture)
     }
 }
