@@ -212,6 +212,12 @@ impl DirectionalLight {
         &self.shadow_map
     }
 
+    #[deprecated]
+    #[must_use]
+    pub const fn native_framebuffer(&self) -> &NativeFramebuffer {
+        &self.shadow_buffer
+    }
+
     /// # Safety
     /// The correct shader should be bound.
     /// The render state should be cleaned up after this function

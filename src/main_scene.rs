@@ -3,7 +3,7 @@ use std::rc::Rc;
 use anyhow::Result;
 
 use egui::{DragValue, Ui, Window};
-use glow::HasContext;
+use glow::{HasContext, NativeFramebuffer, NativeTexture};
 use glutin::surface::GlSurface;
 use nalgebra::{Point3, Rotation3, Scale3, Translation3, Vector3};
 use rand::Rng;
@@ -18,6 +18,7 @@ use crate::meshes;
 use crate::object::Object;
 use crate::render_state::SetUniform;
 use crate::shader_program::ShaderProgram;
+use crate::shadow_util::create_buffer;
 use crate::simulation::Simulation;
 use crate::vertex::PVertex;
 use crate::{context::Context, scene::Scene, vertex::PNVertex};
@@ -31,6 +32,7 @@ pub struct MainScene {
     debug_shader_program: ShaderProgram<PVertex>,
     hud_shader_program: ShaderProgram<PVertex>,
     shadow_shader_program: ShaderProgram<PNVertex>,
+    shadow_blur_program: ShaderProgram<PVertex>,
     depth_pass: bool,
     draw_phong: bool,
     draw_debug: bool,
@@ -47,6 +49,8 @@ pub struct MainScene {
     max_depth: usize,
     lights: Vec<DirectionalLight>,
     frozen_camera: Option<FirstPersonCamera>,
+    blur_texture: NativeTexture,
+    blur_framebuffer: NativeFramebuffer,
 }
 
 impl MainScene {
@@ -77,6 +81,13 @@ impl MainScene {
             "src/shadow-gs.glsl",
             "src/shadow-fs.glsl",
         )?;
+        let shadow_blur_shader_program = ShaderProgram::with_geometry(
+            ctx,
+            "src/blur-vs.glsl",
+            "src/blur-gs.glsl",
+            "src/blur-fs.glsl",
+        )?;
+        let (blur_framebuffer, blur_texture) = create_buffer(ctx.gl.as_ref());
         Ok(Self {
             objects,
             depth_pass_program,
@@ -84,6 +95,7 @@ impl MainScene {
             debug_shader_program,
             hud_shader_program,
             shadow_shader_program,
+            shadow_blur_program: shadow_blur_shader_program,
             depth_pass: true,
             draw_phong: true,
             draw_debug: false,
@@ -100,6 +112,8 @@ impl MainScene {
             max_depth: 5,
             lights: vec![DirectionalLight::new(ctx.gl.as_ref())],
             frozen_camera: None,
+            blur_texture,
+            blur_framebuffer,
         })
     }
 
@@ -320,6 +334,46 @@ impl MainScene {
             }
         }
         ctx.render_state.set_cull_face(glow::BACK);
+        unsafe { ctx.gl.disable(glow::CULL_FACE) };
+        // bind blur shader
+        ctx.render_state.set_program(&self.shadow_blur_program);
+        ctx.render_state
+            .set_uniform("layer_count", &(light::SHADOW_LAYERS as u32));
+        for light in &mut self.lights {
+            // bind shadow map as input texture
+            unsafe {
+                ctx.render_state.set_texture_2d_array_uniform(
+                    "shadow_map",
+                    0,
+                    *light.native_texture(),
+                );
+            }
+            // bind temp texture as output framebuffer
+            ctx.render_state.set_framebuffer(self.blur_framebuffer);
+            // unsafe { ctx.gl.clear(glow::COLOR_BUFFER_BIT) };
+            // set blur direction to horizontal
+            //ctx.render_state.set_uniform("horizontal", &true);
+            // draw call
+            unsafe { ctx.render_state.draw_mesh(&self.rectangle_mesh) };
+
+            // bind temp texture as input texture
+            unsafe {
+                ctx.render_state.set_texture_2d_array_uniform(
+                    "shadow_map",
+                    0,
+                    self.blur_texture,
+                );
+            }
+            // bind shadow map as output framebuffer
+            ctx.render_state
+                .set_framebuffer(*light.native_framebuffer());
+            // unsafe { ctx.gl.clear(glow::COLOR_BUFFER_BIT) };
+            // set blur direction to vertical
+            //ctx.render_state.set_uniform("horizontal", &false);
+            // draw call
+            unsafe { ctx.render_state.draw_mesh(&self.rectangle_mesh) };
+        }
+        unsafe { ctx.gl.enable(glow::CULL_FACE) };
         ctx.render_state.unset_framebuffer();
         ctx.render_state.set_viewport(
             0,
