@@ -334,7 +334,7 @@ impl MainScene {
             }
         }
         ctx.render_state.set_cull_face(glow::BACK);
-        unsafe { ctx.gl.disable(glow::CULL_FACE) };
+        unsafe { ctx.gl.disable(glow::DEPTH_TEST) };
         // bind blur shader
         ctx.render_state.set_program(&self.shadow_blur_program);
         ctx.render_state
@@ -350,9 +350,8 @@ impl MainScene {
             }
             // bind temp texture as output framebuffer
             ctx.render_state.set_framebuffer(self.blur_framebuffer);
-            // unsafe { ctx.gl.clear(glow::COLOR_BUFFER_BIT) };
             // set blur direction to horizontal
-            //ctx.render_state.set_uniform("horizontal", &true);
+            ctx.render_state.set_uniform("horizontal", &true);
             // draw call
             unsafe { ctx.render_state.draw_mesh(&self.rectangle_mesh) };
 
@@ -367,13 +366,12 @@ impl MainScene {
             // bind shadow map as output framebuffer
             ctx.render_state
                 .set_framebuffer(*light.native_framebuffer());
-            // unsafe { ctx.gl.clear(glow::COLOR_BUFFER_BIT) };
             // set blur direction to vertical
-            //ctx.render_state.set_uniform("horizontal", &false);
+            ctx.render_state.set_uniform("horizontal", &false);
             // draw call
             unsafe { ctx.render_state.draw_mesh(&self.rectangle_mesh) };
         }
-        unsafe { ctx.gl.enable(glow::CULL_FACE) };
+        unsafe { ctx.gl.enable(glow::DEPTH_TEST) };
         ctx.render_state.unset_framebuffer();
         ctx.render_state.set_viewport(
             0,

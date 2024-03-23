@@ -228,7 +228,7 @@ impl DirectionalLight {
     ) {
         render_state.set_viewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         render_state.set_framebuffer(self.shadow_buffer);
-        render_state.set_cull_face(glow::FRONT);
+        // render_state.set_cull_face(glow::FRONT);
         unsafe {
             render_state.gl().enable(glow::DEPTH_CLAMP);
         }

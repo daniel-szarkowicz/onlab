@@ -216,3 +216,14 @@ impl SetUniform<u32> for RenderState {
         }
     }
 }
+
+impl SetUniform<bool> for RenderState {
+    fn set_uniform(&mut self, name: &str, data: &bool) {
+        unsafe {
+            self.gl.uniform_1_i32(
+                self.get_uniform_location(name).as_ref(),
+                i32::from(*data),
+            );
+        }
+    }
+}

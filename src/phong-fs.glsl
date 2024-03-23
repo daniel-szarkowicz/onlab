@@ -15,7 +15,6 @@ uniform struct {
   vec3 ambient_color;
   vec3 emissive_color;
   mat4 matrices[MAX_LAYERS];
-  // sampler2DArrayShadow shadow_map;
   sampler2DArray shadow_map;
 } directional_lights[MAX_LIGHTS];
 
@@ -39,40 +38,12 @@ float calculate_shadow(uint i, vec3 normal, vec3 light_dir) {
     || map_coords.y < 0.0 || map_coords.y > 1.0
     || map_coords.w < 0.0 || map_coords.w > 1.0) {
     // no shadow outside shadow map
-    return 0.0;
+    return 1.0;
   }
-  // it might be necessary to offset map_coords.w by a small bias value
-  // float bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.000);
-  // float shadow = float(texture(directional_lights[i].shadow_map, map_coords.xyz).r < map_coords.w);
   float exp_cz = texture(directional_lights[i].shadow_map, map_coords.xyz).r;
-  float exp_minuscd = exp(-80 * ((map_coords.w*2)-1));
-  float shadow = 1-clamp(exp_cz * exp_minuscd, 0, 1);
-  return shadow;
-  // float samples = 8;
-  // float radius = 2.0/1000.0;
-  // float pi = 3.141592653589793;
-  // for (float n = samples; n > 0; n -= 1) {
-  //   for (float m = 1; m <= samples; m += 1) {
-  //     float u = n/samples;
-  //     float v = m/samples;
-  //     float x = sqrt(u) * cos(2*pi * v);
-  //     float y = sqrt(u) * sin(2*pi * v);
-  //     shadow += texture(
-  //       directional_lights[i].shadow_map, map_coords + vec4(x, y, 0, 0) * radius
-  //     );
-  //   }
-  //   // if this is the first round and everything was/wasn't shadowed
-  //   // then very likely the rest would be the same, so we don't need to check
-  //   if (n == samples) {
-  //     if (shadow == samples + 1) {
-  //       return 1.0;
-  //     }
-  //     if (shadow == 0) {
-  //       return 0.0;
-  //     }
-  //   }
-  // }
-  // return shadow / (samples * samples + 1);
+  float exp_minuscd = exp(-80 * map_coords.w);
+  float shadow = exp_cz * exp_minuscd;
+  return clamp(shadow, 0, 1);
 }
 
 void main() {
@@ -87,10 +58,8 @@ void main() {
     float cosa = max(dot(N, V), 0);
     float shadow = calculate_shadow(i, N, L);
     color += ka * (0.9 + cosa * 0.1) * directional_lights[i].ambient_color;
-    color += (1.0 - shadow) * (kd * cost + ks * pow(cosd, shine))
+    color += shadow * (kd * cost + ks * pow(cosd, shine))
       * directional_lights[i].emissive_color;
-    // frag_color = vec4(shadow, 0, 0, 1);
-    // return;
   }
   frag_color = vec4(color, 1);
 }
