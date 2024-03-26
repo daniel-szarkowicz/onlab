@@ -116,3 +116,17 @@ fn tetrahedron_triangle_subcheck(x, y, d, xyd_perp) -> (Simplex, Vector3, bool) 
   (Three(x, y, d), xyd_perp, false);
 }
 ```
+
+A `best_simplex` algoritmus feltételezi néhány invariáns teljesülését.
+Az invariánsok simplex típusonként:
+
+#let origo = $bold(accent(0, arrow))$
+
+- *One(a):* $a != origo$, azaz `a` nem az origó.
+- *Two(a, b):* $(origo-a) dot (b-a) > 0 and (origo-b) dot (a-b) > 0$, azaz az
+  `ab` egyenes nem tartalmazza az origót, `a` nem `b` és az origó az `ab`
+  szakasz által meghatározott sávban van.
+- *Three(a, b, c):* az origó az `ab` szakasz és a `c` pont által meghatározott
+  téglalap alapú végtelen hasábban van.
+- *Four(a, b, c, d):* az origó az előző hasábnak az `abc` háromszög és `d` pont
+  közötti részében található.
