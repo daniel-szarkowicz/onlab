@@ -2,7 +2,7 @@ use nalgebra::{
     Matrix3, Matrix4, Point3, Rotation3, Scale3, Translation3, Vector3, Vector4,
 };
 
-use crate::{aabb::AABB, ray::Ray};
+use crate::{aabb::AABB, gjk::Support, ray::Ray};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Collider {
@@ -159,3 +159,28 @@ const BOX_FACES: [[Point3<f64>; 4]; 6] = [
         Point3::new(-0.5, -0.5, -0.5),
     ],
 ];
+
+impl Support for (Point3<f64>, Rotation3<f64>, Collider) {
+    fn support(&self, direction: &Vector3<f64>) -> Vector3<f64> {
+        let (pos, rot, collider) = self;
+        match collider {
+            Collider::Sphere(r) => pos.coords + direction.normalize() * *r,
+            Collider::Box(w, h, d) => [
+                Vector3::new(0.5, 0.5, 0.5),
+                Vector3::new(0.5, 0.5, -0.5),
+                Vector3::new(0.5, -0.5, 0.5),
+                Vector3::new(0.5, -0.5, -0.5),
+                Vector3::new(-0.5, 0.5, 0.5),
+                Vector3::new(-0.5, 0.5, -0.5),
+                Vector3::new(-0.5, -0.5, 0.5),
+                Vector3::new(-0.5, -0.5, -0.5),
+            ]
+            .into_iter()
+            .map(|v| rot * (Scale3::new(*w, *h, *d) * v) + pos.coords)
+            .map(|v| (v, v.dot(direction)))
+            .max_by(|(_, x), (_, y)| x.total_cmp(y))
+            .map(|(v, _)| v)
+            .unwrap(),
+        }
+    }
+}

@@ -2,6 +2,7 @@ pub mod aabb;
 pub mod camera;
 pub mod collider;
 pub mod context;
+pub mod gjk;
 pub mod light;
 pub mod main_scene;
 pub mod mesh;

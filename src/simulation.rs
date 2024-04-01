@@ -12,7 +12,9 @@ use std::{collections::HashSet, vec::Vec};
 
 use nalgebra::{Point3, Vector3};
 
-use crate::{aabb::AABB, collider::Collider, object::Object, rtree::RTree};
+use crate::{
+    aabb::AABB, collider::Collider, gjk::gjk, object::Object, rtree::RTree,
+};
 
 #[derive(Debug)]
 pub struct Simulation {
@@ -86,7 +88,7 @@ impl Simulation {
                 // i == j should not be checked
                 if i < j {
                     if let Some(contact) =
-                        self.check_contact(&objects[i], &objects[j])
+                        self.check_contact_gjk(&objects[i], &objects[j])
                     {
                         contacts.push((i, j, contact));
                     }
@@ -214,6 +216,20 @@ impl Simulation {
                 })
             }
             _ => None,
+        }
+    }
+
+    #[allow(clippy::unused_self)]
+    fn check_contact_gjk(&self, o1: &Object, o2: &Object) -> Option<Contact> {
+        if gjk(
+            &(o1.position, o1.rotation, o1.collider),
+            &(o2.position, o2.rotation, o2.collider),
+        ) {
+            let contact = self.check_contact(o1, o2);
+            assert!(contact.is_some());
+            contact
+        } else {
+            None
         }
     }
 

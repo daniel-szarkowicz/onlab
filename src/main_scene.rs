@@ -151,7 +151,7 @@ impl MainScene {
             ..Object::new(&self.sphere_mesh, Collider::Sphere(1.0), 1.0)
         });
         self.objects.push(Object {
-            position: Point3::new(3.0, 0.0, 0.0),
+            position: Point3::new(2.0, 0.0, 0.0),
             rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
             mesh_scale: Vector3::new(1.0, 1.0, 1.0),
             immovable: true,
