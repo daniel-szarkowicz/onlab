@@ -1,6 +1,7 @@
 /target
 *.pdf
 *.svg
+*.ggb
 perf.data
 perf.data.old
 cardinality.txt

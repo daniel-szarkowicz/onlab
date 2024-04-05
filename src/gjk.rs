@@ -1,4 +1,6 @@
-use nalgebra::Vector3;
+use std::ops::{Add, Mul};
+
+use nalgebra::{Const, Dyn, Matrix, Vector3};
 use rand::random;
 
 type Vec3 = Vector3<f64>;
@@ -7,7 +9,7 @@ pub trait Support {
     fn support(&self, direction: &Vec3) -> Vec3;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct SimplexPoint {
     diff: Vec3,
     a: Vec3,
@@ -219,3 +221,157 @@ fn tetrahedron_triangle_subcheck(
 
     (s, xyd_perp, false)
 }
+
+pub fn gjk2(a: &impl Support, b: &impl Support) -> bool {
+    let mut s = Vec::with_capacity(5);
+    s.push(SimplexPoint::new(
+        a,
+        b,
+        &Vec3::new(random(), random(), random()),
+    ));
+    let mut prev_dist = f64::INFINITY;
+    // println!("start");
+    loop {
+        let closest_point: SimplexPoint;
+        (closest_point, s) = closest_simplex(s);
+        let dist = closest_point.diff.magnitude();
+        // dbg!(dist);
+        // assert!(dist <= prev_dist);
+        // if dist > prev_dist {
+        //     // return true;
+        //     dbg!(dist, prev_dist);
+        // }
+        if dist <= 0.01 {
+            // todo!("calculate contact normal");
+            return true;
+        }
+        if prev_dist - dist <= 0.001 {
+            // no contact
+            return false;
+        }
+        prev_dist = dist;
+        s.push(SimplexPoint::new(a, b, &-closest_point.diff));
+    }
+}
+
+fn closest_simplex(
+    mut s: Vec<SimplexPoint>,
+) -> (SimplexPoint, Vec<SimplexPoint>) {
+    // dbg!(s.len());
+    match s.len() {
+        0 => panic!("simplex has to contain at leas 1 point"),
+        // 1 => (s[0].clone(), s),
+        len => {
+            let free_count = len - 1;
+            let diffs: Vec<_> = s
+                .iter()
+                .take(free_count)
+                .map(|p| p.diff - s[free_count].diff)
+                .collect();
+            let mut a_data = Vec::with_capacity(free_count * free_count);
+            for v1 in &diffs {
+                for v2 in &diffs {
+                    a_data.push(v1.dot(v2));
+                }
+            }
+            let mut a_inverse = Matrix::from_vec_generic(
+                Dyn(free_count),
+                Dyn(free_count),
+                a_data,
+            );
+
+            if !a_inverse.try_inverse_mut() {
+                println!("matrix not invertible");
+                println!("matrix = {a_inverse:?}");
+                println!("using pseudo inverse");
+                a_inverse = a_inverse
+                    .pseudo_inverse(0.01)
+                    .inspect_err(|e| println!("{e}"))
+                    .unwrap();
+            }
+            let b_data: Vec<_> =
+                diffs.iter().map(|p| -p.dot(&s[free_count].diff)).collect();
+            let b =
+                Matrix::from_vec_generic(Dyn(free_count), Const::<1>, b_data);
+            let x = a_inverse * b;
+            let mut x_data: Vec<_> = x.data.into();
+            x_data.push(1.0 - x_data.iter().sum::<f64>());
+            // for (asdf, sp) in x_data.iter().zip(&s) {
+            //     print!(
+            //         "{asdf} * ({}, {}, {}) + ",
+            //         sp.diff.x, sp.diff.y, sp.diff.z
+            //     );
+            // }
+            // let asdf = x_data
+            //     .iter()
+            //     .zip(&s)
+            //     .map(|(t, v)| *t * v)
+            //     .reduce(|a, b| a + b)
+            //     .unwrap();
+            // println!(" = ({}, {}, {})", asdf.diff.x, asdf.diff.y, asdf.diff.z);
+            if x_data.iter().all(|v| v >= &0.0) {
+                (
+                    x_data
+                        .iter()
+                        .zip(&s)
+                        .map(|(t, v)| *t * v)
+                        .reduce(|a, b| a + b)
+                        .unwrap(),
+                    s,
+                )
+            } else {
+                for i in x_data
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, d)| d < &&0.0)
+                    .map(|(i, _)| i)
+                    .rev()
+                {
+                    // println!("removing {i}");
+                    s.swap_remove(i);
+                }
+                // println!("recursing");
+                closest_simplex(s)
+            }
+        }
+    }
+}
+
+impl Mul<&SimplexPoint> for f64 {
+    type Output = SimplexPoint;
+
+    fn mul(self, rhs: &SimplexPoint) -> Self::Output {
+        SimplexPoint {
+            diff: self * rhs.diff,
+            a: self * rhs.a,
+            b: self * rhs.b,
+        }
+    }
+}
+
+impl Add for SimplexPoint {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self.diff += rhs.diff;
+        self.a += rhs.a;
+        self.b += rhs.b;
+        self
+    }
+}
+
+// impl Sum for SimplexPoint {
+//     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+//         todo!()
+//     }
+// }
+
+/*
+simplex = init
+prev dist = inf
+loop
+    p, simplex = closest point and simplex
+    assert distance didn't increase
+    compare distance to prev, exit if neccesary
+    add new point to simplex with direction -p
+*/

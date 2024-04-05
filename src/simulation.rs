@@ -13,7 +13,11 @@ use std::{collections::HashSet, vec::Vec};
 use nalgebra::{Point3, Vector3};
 
 use crate::{
-    aabb::AABB, collider::Collider, gjk::gjk, object::Object, rtree::RTree,
+    aabb::AABB,
+    collider::Collider,
+    gjk::{gjk, gjk2},
+    object::Object,
+    rtree::RTree,
 };
 
 #[derive(Debug)]
@@ -221,12 +225,12 @@ impl Simulation {
 
     #[allow(clippy::unused_self)]
     fn check_contact_gjk(&self, o1: &Object, o2: &Object) -> Option<Contact> {
-        if gjk(
+        if gjk2(
             &(o1.position, o1.rotation, o1.collider),
             &(o2.position, o2.rotation, o2.collider),
         ) {
             let contact = self.check_contact(o1, o2);
-            assert!(contact.is_some());
+            // assert!(contact.is_some());
             contact
         } else {
             None

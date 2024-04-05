@@ -133,10 +133,10 @@ impl MainScene {
         self.objects.push(Object {
             immovable: true,
             position: Point3::new(0.0, -10.0, 0.0),
-            mesh_scale: Vector3::new(10000.0, 10.0, 10000.0),
+            mesh_scale: Vector3::new(1000.0, 10.0, 1000.0),
             ..Object::new(
                 &self.box_mesh,
-                Collider::Box(10000.0, 10.0, 10000.0),
+                Collider::Box(1000.0, 10.0, 1000.0),
                 1.0,
             )
         });
@@ -182,8 +182,8 @@ impl MainScene {
                 for z in 0..10 {
                     self.objects.push(Object {
                         position: Point3::new(
-                            f64::from(x),
-                            f64::from(y),
+                            f64::from(x) * 1.0001,
+                            f64::from(y) * 1.0001,
                             f64::from(z) * 1.5,
                         ),
                         mesh_scale: Vector3::new(0.5, 0.5, 0.5),
@@ -206,10 +206,10 @@ impl MainScene {
         self.objects.push(Object {
             immovable: true,
             position: Point3::new(0.0, -15.0, 0.0),
-            mesh_scale: Vector3::new(10000.0, 10.0, 10000.0),
+            mesh_scale: Vector3::new(1000.0, 10.0, 1000.0),
             ..Object::new(
                 &self.box_mesh,
-                Collider::Box(10000.0, 10.0, 10000.0),
+                Collider::Box(1000.0, 10.0, 1000.0),
                 1.0,
             )
         });
