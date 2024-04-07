@@ -242,11 +242,20 @@ pub fn gjk2(a: &impl Support, b: &impl Support) -> bool {
         //     dbg!(dist, prev_dist);
         // }
         if dist <= 0.01 {
-            // todo!("calculate contact normal");
+            // return (
+            //     closest_point.a,
+            //     closest_point.b,
+            //     todo!("calculate normal"),
+            // );
             return true;
         }
         if prev_dist - dist <= 0.001 {
             // no contact
+            // return (
+            //     closest_point.a,
+            //     closest_point.b,
+            //     (closest_point.b - closest_point.a).normalize(),
+            // );
             return false;
         }
         prev_dist = dist;
@@ -262,23 +271,15 @@ fn closest_simplex(
         0 => panic!("simplex has to contain at leas 1 point"),
         // 1 => (s[0].clone(), s),
         len => {
-            let free_count = len - 1;
-            let diffs: Vec<_> = s
-                .iter()
-                .take(free_count)
-                .map(|p| p.diff - s[free_count].diff)
-                .collect();
-            let mut a_data = Vec::with_capacity(free_count * free_count);
-            for v1 in &diffs {
-                for v2 in &diffs {
-                    a_data.push(v1.dot(v2));
+            let mut a_data = Vec::with_capacity(len * len);
+            for v1 in &s {
+                for v2 in &s[0..len - 1] {
+                    a_data.push(v1.diff.dot(&v2.diff));
                 }
+                a_data.push(1.0);
             }
-            let mut a_inverse = Matrix::from_vec_generic(
-                Dyn(free_count),
-                Dyn(free_count),
-                a_data,
-            );
+            let mut a_inverse =
+                Matrix::from_vec_generic(Dyn(len), Dyn(len), a_data);
 
             if !a_inverse.try_inverse_mut() {
                 println!("matrix not invertible");
@@ -289,29 +290,23 @@ fn closest_simplex(
                     .inspect_err(|e| println!("{e}"))
                     .unwrap();
             }
-            let b_data: Vec<_> =
-                diffs.iter().map(|p| -p.dot(&s[free_count].diff)).collect();
-            let b =
-                Matrix::from_vec_generic(Dyn(free_count), Const::<1>, b_data);
-            let x = a_inverse * b;
-            let mut x_data: Vec<_> = x.data.into();
-            x_data.push(1.0 - x_data.iter().sum::<f64>());
-            // for (asdf, sp) in x_data.iter().zip(&s) {
+            let multipliers = a_inverse.column(len - 1);
+            // for (asdf, sp) in multipliers.iter().zip(&s) {
             //     print!(
             //         "{asdf} * ({}, {}, {}) + ",
             //         sp.diff.x, sp.diff.y, sp.diff.z
             //     );
             // }
-            // let asdf = x_data
+            // let asdf = multipliers
             //     .iter()
             //     .zip(&s)
             //     .map(|(t, v)| *t * v)
             //     .reduce(|a, b| a + b)
             //     .unwrap();
             // println!(" = ({}, {}, {})", asdf.diff.x, asdf.diff.y, asdf.diff.z);
-            if x_data.iter().all(|v| v >= &0.0) {
+            if multipliers.iter().all(|v| v >= &0.0) {
                 (
-                    x_data
+                    multipliers
                         .iter()
                         .zip(&s)
                         .map(|(t, v)| *t * v)
@@ -320,7 +315,7 @@ fn closest_simplex(
                     s,
                 )
             } else {
-                for i in x_data
+                for i in multipliers
                     .iter()
                     .enumerate()
                     .filter(|(_, d)| d < &&0.0)
