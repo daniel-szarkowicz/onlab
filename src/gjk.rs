@@ -237,7 +237,7 @@ pub fn gjk2(a: &impl Support, b: &impl Support) -> GJKResult {
         (closest_point, s) = closest_simplex(s);
         let dist = closest_point.diff.magnitude();
         // dbg!(dist);
-        // assert!(dist <= prev_dist);
+        assert!(dist <= prev_dist);
         // if dist > prev_dist {
         //     // return true;
         //     dbg!(dist, prev_dist);
@@ -303,11 +303,32 @@ fn closest_simplex(
 
             // let a_clone = a_inverse.clone();
             if !a_inverse.try_inverse_mut() {
-                println!("matrix not invertible");
+                // Matrix is not invertible. This is usually caused by the
+                // vec of simplex points not being a simplex. We can resolve
+                // this by descending into all sub-simplices and choosing the
+                // closest one. This could be optimized by only descending into
+                // non-overlapping sub-simplices.
+
+                // println!("matrix not invertible");
                 // println!("matrix = {a_clone:?}");
                 // dbg!(&s);
                 // assert!(a_inverse[0] == 1.0);
-                return (s[0].clone(), s);
+                let mut best: Option<(SimplexPoint, Vec<SimplexPoint>)> = None;
+                for i in 0..len {
+                    let mut new_s = s.clone();
+                    new_s.swap_remove(i);
+                    // println!("removing {i}");
+                    // s.swap_remove(i);
+                    // println!("not invertible recursing");
+                    let (point, new_s) = closest_simplex(new_s);
+                    if best.is_none()
+                        || point.diff.magnitude()
+                            < best.as_ref().unwrap().0.diff.magnitude()
+                    {
+                        best = Some((point, new_s));
+                    }
+                }
+                return best.unwrap();
                 // println!("using pseudo inverse");
                 // a_inverse = a_clone
                 //     .pseudo_inverse(0.01)
