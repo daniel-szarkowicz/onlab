@@ -15,7 +15,7 @@ use nalgebra::{Point3, Vector3};
 use crate::{
     aabb::AABB,
     collider::Collider,
-    gjk::{gjk, gjk2},
+    gjk::{gjk, gjk2, GJKResult},
     object::Object,
     rtree::RTree,
 };
@@ -225,15 +225,24 @@ impl Simulation {
 
     #[allow(clippy::unused_self)]
     fn check_contact_gjk(&self, o1: &Object, o2: &Object) -> Option<Contact> {
-        if gjk2(
+        match gjk2(
             &(o1.position, o1.rotation, o1.collider),
             &(o2.position, o2.rotation, o2.collider),
         ) {
-            let contact = self.check_contact(o1, o2);
-            // assert!(contact.is_some());
-            contact
-        } else {
-            None
+            GJKResult::Contact { points, normal } => Some(Contact {
+                points: (points.0.into(), points.1.into()),
+                normal,
+            }),
+            GJKResult::NoContact => {
+                // assert!(self.check_contact(o1, o2).is_none());
+                None
+            }
+            GJKResult::UnknownContact => {
+                eprintln!(
+                    "gjk gave unknown contact, falling back to other solution"
+                );
+                self.check_contact(o1, o2)
+            }
         }
     }
 

@@ -7,9 +7,10 @@ type Vec3 = Vector3<f64>;
 
 pub trait Support {
     fn support(&self, direction: &Vec3) -> Vec3;
+    fn radius(&self) -> f64;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct SimplexPoint {
     diff: Vec3,
     a: Vec3,
@@ -222,7 +223,7 @@ fn tetrahedron_triangle_subcheck(
     (s, xyd_perp, false)
 }
 
-pub fn gjk2(a: &impl Support, b: &impl Support) -> bool {
+pub fn gjk2(a: &impl Support, b: &impl Support) -> GJKResult {
     let mut s = Vec::with_capacity(5);
     s.push(SimplexPoint::new(
         a,
@@ -247,19 +248,28 @@ pub fn gjk2(a: &impl Support, b: &impl Support) -> bool {
             //     closest_point.b,
             //     todo!("calculate normal"),
             // );
-            return true;
+            return GJKResult::UnknownContact;
         }
         if prev_dist - dist <= 0.001 {
-            // no contact
-            // return (
-            //     closest_point.a,
-            //     closest_point.b,
-            //     (closest_point.b - closest_point.a).normalize(),
-            // );
-            return false;
+            if dist <= a.radius() + b.radius() {
+                let normal = closest_point.a - closest_point.b;
+                return GJKResult::Contact {
+                    points: (
+                        closest_point.a
+                            - normal * a.radius() / (a.radius() + b.radius()),
+                        closest_point.b
+                            + normal * b.radius() / (a.radius() + b.radius()),
+                    ),
+                    normal: normal.normalize(),
+                };
+            }
+            return GJKResult::NoContact;
         }
         prev_dist = dist;
-        s.push(SimplexPoint::new(a, b, &-closest_point.diff));
+        let new_point = SimplexPoint::new(a, b, &-closest_point.diff);
+        if !s.contains(&new_point) {
+            s.push(new_point);
+        }
     }
 }
 
@@ -271,26 +281,46 @@ fn closest_simplex(
         0 => panic!("simplex has to contain at leas 1 point"),
         // 1 => (s[0].clone(), s),
         len => {
+            let diffs: Vec<_> =
+                s.iter().skip(1).map(|p| p.diff - s[0].diff).collect();
             let mut a_data = Vec::with_capacity(len * len);
-            for v1 in &s {
-                for v2 in &s[0..len - 1] {
-                    a_data.push(v1.diff.dot(&v2.diff));
-                }
-                a_data.push(1.0);
+            a_data.push(1.0);
+            #[allow(clippy::same_item_push)]
+            for _ in 0..len - 1 {
+                a_data.push(0.0);
             }
+            for v1 in &diffs {
+                a_data.push(1.0);
+                for v2 in &diffs {
+                    a_data.push(v1.dot(v2));
+                }
+            }
+            assert!(a_data.len() == len * len);
+            // assert!(a_data[0] == 1.0);
             let mut a_inverse =
                 Matrix::from_vec_generic(Dyn(len), Dyn(len), a_data);
+            // assert!(a_inverse[0] == 1.0);
 
+            // let a_clone = a_inverse.clone();
             if !a_inverse.try_inverse_mut() {
                 println!("matrix not invertible");
-                println!("matrix = {a_inverse:?}");
-                println!("using pseudo inverse");
-                a_inverse = a_inverse
-                    .pseudo_inverse(0.01)
-                    .inspect_err(|e| println!("{e}"))
-                    .unwrap();
+                // println!("matrix = {a_clone:?}");
+                // dbg!(&s);
+                // assert!(a_inverse[0] == 1.0);
+                return (s[0].clone(), s);
+                // println!("using pseudo inverse");
+                // a_inverse = a_clone
+                //     .pseudo_inverse(0.01)
+                //     .inspect_err(|e| println!("{e}"))
+                //     .unwrap();
             }
-            let multipliers = a_inverse.column(len - 1);
+            let mut b_data = Vec::with_capacity(len);
+            b_data.push(1.0);
+            for v in &diffs {
+                b_data.push(-s[0].diff.dot(v));
+            }
+            let b = Matrix::from_vec_generic(Dyn(len), Const::<1>, b_data);
+            let multipliers = a_inverse * b;
             // for (asdf, sp) in multipliers.iter().zip(&s) {
             //     print!(
             //         "{asdf} * ({}, {}, {}) + ",
@@ -315,6 +345,7 @@ fn closest_simplex(
                     s,
                 )
             } else {
+                let mut best: Option<(SimplexPoint, Vec<SimplexPoint>)> = None;
                 for i in multipliers
                     .iter()
                     .enumerate()
@@ -322,14 +353,31 @@ fn closest_simplex(
                     .map(|(i, _)| i)
                     .rev()
                 {
+                    let mut new_s = s.clone();
+                    new_s.swap_remove(i);
                     // println!("removing {i}");
-                    s.swap_remove(i);
+                    // s.swap_remove(i);
+                    let (point, new_s) = closest_simplex(new_s);
+                    if best.is_none()
+                        || point.diff.magnitude()
+                            < best.as_ref().unwrap().0.diff.magnitude()
+                    {
+                        best = Some((point, new_s));
+                    }
                 }
+                best.unwrap()
                 // println!("recursing");
-                closest_simplex(s)
+                // closest_simplex(s)
             }
         }
     }
+}
+
+#[derive(Debug)]
+pub enum GJKResult {
+    Contact { points: (Vec3, Vec3), normal: Vec3 },
+    UnknownContact,
+    NoContact,
 }
 
 impl Mul<&SimplexPoint> for f64 {

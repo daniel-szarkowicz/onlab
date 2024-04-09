@@ -164,7 +164,7 @@ impl Support for (Point3<f64>, Rotation3<f64>, Collider) {
     fn support(&self, direction: &Vector3<f64>) -> Vector3<f64> {
         let (pos, rot, collider) = self;
         match collider {
-            Collider::Sphere(r) => pos.coords + direction.normalize() * *r,
+            Collider::Sphere(_) => pos.coords,
             Collider::Box(w, h, d) => [
                 Vector3::new(0.5, 0.5, 0.5),
                 Vector3::new(0.5, 0.5, -0.5),
@@ -181,6 +181,14 @@ impl Support for (Point3<f64>, Rotation3<f64>, Collider) {
             .max_by(|(_, x), (_, y)| x.total_cmp(y))
             .map(|(v, _)| v)
             .unwrap(),
+        }
+    }
+
+    fn radius(&self) -> f64 {
+        let (_, _, collider) = self;
+        match collider {
+            Collider::Sphere(r) => *r,
+            Collider::Box(..) => 0.0,
         }
     }
 }

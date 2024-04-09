@@ -16,9 +16,9 @@ $
   // d^2 = P^2 = A_(n+1)^2 + sum_(i=1)^n A_(n+1)
   d^2 = P^2 = sum_(i=1)^(n+1) sum_(j=1)^(n+1) t_i dot t_j dot A_i dot A_j
 $
-We know this function has exactly one minimum, it can be found by it's derivatives
+We know this function has exactly one minimum, it can be found by its derivatives
 $
-  d^2 '_t_i = sum_(j=1)^(n+1) 2 t_j dot A_i dot A_j =& 0\
+  (diff d^2)/(diff t_i) = sum_(j=1)^(n+1) 2 t_j dot A_i dot A_j =& 0\
   sum_(j=1)^(n+1) t_j dot A_i dot A_j =& 0
 $
 We have a linear equation with $n+1$ variables and $n+2$ equations, we can
@@ -39,7 +39,52 @@ If any point has a negative multiplier, than the nearest point is not in the
 simplex. We simply remove the points with negative multipliers from the simplex
 and calculate again.
 
+#pagebreak()
+= Simplex closest point to origin (attempt 2)
 
+A simplex of $n$ dimensions is defined by points ${A_1, A_2, ..., A_n, A_(n+1)}$
+
+Point $P$ on the space of the simplex can be defined with barycentric coordinates
+as
+$
+  P = sum_(i=1)^(n+1) t_i dot A_i, quad sum_(i=1)^(n+1) t_i = 1\
+  t_(n+1) = 1 - sum_(i=1)^n t_i\
+  P = sum_(i=1)^n t_i dot A_i + (1 - sum_(i=1)^n t_i) dot A_(n+1) =
+    A_(n+1) + sum_(i=1)^n t_i dot (A_i - A_(n+1))
+$
+
+The squared distance of point $P$ from the origin is
+$
+  d^2 = P^2 = A_(n+1)^2 + 2 sum_(i=1)^n t_i dot A_(n+1) dot (A_i - A_(n+1))
+    + sum_(i=1)^n sum_(j=1)^n t_i dot t_j dot (A_i - A_(n+1)) dot (A_j - A_(n+1))
+$
+
+We know this function has exactly one minimum, it can be found by its derivatives
+$
+  (diff d^2)/(diff t_i) = 2 A_(n+1) dot (A_i - A_(n+1))
+    + 2 sum_(j=1)^n t_j dot (A_i - A_(n+1)) dot (A_j - A_(n+1)) =& 0\
+  sum_(j=1)^n t_j dot (A_i - A_(n+1)) dot (A_j - A_(n+1)) =&
+    -A_(n+1) dot (A_i - A_(n+1))
+$
+We have a linear equation with $n+1$ variables and $n+1$ equations.
+The linear equation can be solved by writing it into a matrix and inverting it.
+$
+  A'_i = A_i - A_(n+1)\
+  mat(
+    A'_1 dot A'_1, A'_1 dot A'_2, dots.c   , A'_1 dot A'_n, 0;
+    A'_2 dot A'_1, A'_2 dot A'_2, dots.c   , A'_2 dot A'_n, 0;
+    dots.v       , dots.v       , dots.down, dots.v       , dots.v;
+    A'_n dot A'_1, A'_n dot A'_2, dots.c   , A'_n dot A'_n, 0;
+    1            , 1            , dots.c   , 1            , 1;
+  ) dot mat(t_1; t_2; dots.v; t_n; t_(n+1)) =
+  mat(
+    -A_(n+1) dot A'_1;
+    -A_(n+1) dot A'_2;
+    dots.v           ;
+    -A_(n+1) dot A'_n;
+    1;
+  )
+$
 
 // ```rust
 // type Simplex = Vec<Vector3>;
