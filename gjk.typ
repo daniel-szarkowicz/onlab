@@ -83,8 +83,27 @@ $
     dots.v           ;
     -A_(n+1) dot A'_n;
     1;
+  )\
+  mat(t_1; t_2; dots.v; t_n; t_(n+1)) = mat(
+    A'_1 dot A'_1, A'_1 dot A'_2, dots.c   , A'_1 dot A'_n, 0;
+    A'_2 dot A'_1, A'_2 dot A'_2, dots.c   , A'_2 dot A'_n, 0;
+    dots.v       , dots.v       , dots.down, dots.v       , dots.v;
+    A'_n dot A'_1, A'_n dot A'_2, dots.c   , A'_n dot A'_n, 0;
+    1            , 1            , dots.c   , 1            , 1;
+  )^(-1) dot mat(
+    -A_(n+1) dot A'_1;
+    -A_(n+1) dot A'_2;
+    dots.v           ;
+    -A_(n+1) dot A'_n;
+    1;
   )
 $
+If the matrix is not invertible (this usually means, that the points do not form
+a simplex) we will run the algorithm for all sub-simplices recursively.
+
+If any of the weights is negative the point is outside of the simplex. We will
+have to run the algorithm for all sub-simplicies with one of the points with
+negative weight removed.
 
 // ```rust
 // type Simplex = Vec<Vector3>;
