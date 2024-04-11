@@ -273,9 +273,7 @@ pub fn gjk2(a: &impl Support, b: &impl Support) -> GJKResult {
     }
 }
 
-fn closest_simplex(
-    mut s: Vec<SimplexPoint>,
-) -> (SimplexPoint, Vec<SimplexPoint>) {
+fn closest_simplex(s: Vec<SimplexPoint>) -> (SimplexPoint, Vec<SimplexPoint>) {
     // dbg!(s.len());
     match s.len() {
         0 => panic!("simplex has to contain at leas 1 point"),
@@ -297,12 +295,12 @@ fn closest_simplex(
             }
             assert!(a_data.len() == len * len);
             // assert!(a_data[0] == 1.0);
-            let mut a_inverse =
-                Matrix::from_vec_generic(Dyn(len), Dyn(len), a_data);
+            let a = Matrix::from_vec_generic(Dyn(len), Dyn(len), a_data);
             // assert!(a_inverse[0] == 1.0);
 
             // let a_clone = a_inverse.clone();
-            if !a_inverse.try_inverse_mut() {
+            let det = a.determinant();
+            if det.abs() <= 0.0001 {
                 // Matrix is not invertible. This is usually caused by the
                 // vec of simplex points not being a simplex. We can resolve
                 // this by descending into all sub-simplices and choosing the
@@ -313,6 +311,7 @@ fn closest_simplex(
                 // println!("matrix = {a_clone:?}");
                 // dbg!(&s);
                 // assert!(a_inverse[0] == 1.0);
+                // eprintln!("matrix determinant small ({det})");
                 let mut best: Option<(SimplexPoint, Vec<SimplexPoint>)> = None;
                 for i in 0..len {
                     let mut new_s = s.clone();
@@ -335,6 +334,7 @@ fn closest_simplex(
                 //     .inspect_err(|e| println!("{e}"))
                 //     .unwrap();
             }
+            let a_inverse = a.try_inverse().expect("a is invertible");
             let mut b_data = Vec::with_capacity(len);
             b_data.push(1.0);
             for v in &diffs {
