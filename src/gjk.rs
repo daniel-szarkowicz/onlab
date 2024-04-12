@@ -5,252 +5,54 @@ use rand::random;
 
 type Vec3 = Vector3<f64>;
 
+const TOLERANCE: f64 = 1e-7;
+const SIMPLEX_MAX_DIM: usize = 4;
+
 pub trait Support {
     fn support(&self, direction: &Vec3) -> Vec3;
     fn radius(&self) -> f64;
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct SimplexPoint {
-    diff: Vec3,
-    a: Vec3,
-    b: Vec3,
+pub struct SupportPoint {
+    pub diff: Vec3,
+    pub a: Vec3,
+    pub b: Vec3,
 }
 
-impl SimplexPoint {
-    fn new(a: &impl Support, b: &impl Support, dir: &Vec3) -> Self {
+impl SupportPoint {
+    pub fn new(a: &impl Support, b: &impl Support, dir: &Vec3) -> Self {
         let a = a.support(dir);
         let b = b.support(&-dir);
         Self { diff: a - b, a, b }
     }
 }
 
-pub fn gjk(a: &impl Support, b: &impl Support) -> bool {
-    let mut dir = Vec3::new(random(), random(), random());
+pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
     let mut s = Vec::with_capacity(5);
-    loop {
-        // if dir.magnitude() < 0.001 {
-        //     println!("simplex contains origin");
-        //     return true;
-        // }
-        assert!(dir.magnitude() > f64::EPSILON);
-        // dir.normalize_mut();
-        let new_point = SimplexPoint::new(a, b, &dir);
-        // println!("dir dot {:?}", new_point.diff.dot(&dir.normalize()));
-        if new_point.diff.dot(&dir) < 0.001 {
-            return false;
-            // todo!("calculate closest points");
-        }
-        // println!("distance form origin: {}", new_point.diff.magnitude());
-        // if new_point.diff.magnitude() < 0.001 {
-        //     dbg!("close to the origin");
-        //     return true;
-        // }
-        s.push(new_point);
-        // dbg!(s.len());
-
-        // for p in &s {
-        //     println!("({}, {}, {}),", p.diff.x, p.diff.y, p.diff.z);
-        // }
-        let contains_origin;
-        (s, dir, contains_origin) = best_simplex(s);
-        // dbg!(s.len(), dir);
-        if contains_origin {
-            return true;
-            // todo!("calculate contact points and contact normal");
-        }
-    }
-}
-
-#[allow(clippy::similar_names)]
-fn best_simplex(mut s: Vec<SimplexPoint>) -> (Vec<SimplexPoint>, Vec3, bool) {
-    match s.len() {
-        1 => {
-            let dir = -s[0].diff;
-            (s, dir, false)
-        }
-        2 => {
-            let dir = (s[1].diff - s[0].diff)
-                .cross(&-s[0].diff)
-                .cross(&(s[1].diff - s[0].diff));
-            (s, dir, false)
-        }
-        3 => {
-            // háromszög síkjára merőleges
-            let abc_perp =
-                (s[1].diff - s[0].diff).cross(&(s[2].diff - s[0].diff));
-
-            // háromszögből kifele mutat, ac-re merőleges
-            let ac_perp = abc_perp.cross(&(s[2].diff - s[0].diff));
-            // ha az origó egy irányba van az oldal normáljával
-            if ac_perp.dot(&-s[2].diff) > 0.0 {
-                // b-t kivesszük, mert nem kell
-                s.remove(1);
-                let dir = (s[1].diff - s[0].diff)
-                    .cross(&-s[0].diff)
-                    .cross(&(s[1].diff - s[0].diff));
-                // println!("ac");
-                return (s, dir, false);
-            }
-
-            // háromszögből kifele mutat, bc-re merőleges
-            let bc_perp = (s[2].diff - s[1].diff).cross(&abc_perp);
-            // ha az origó egy irányba van az oldal normáljával
-            if bc_perp.dot(&-s[2].diff) > 0.0 {
-                // a-t kivesszük, mert nem kell
-                s.remove(0);
-                let dir = (s[1].diff - s[0].diff)
-                    .cross(&-s[0].diff)
-                    .cross(&(s[1].diff - s[0].diff));
-                // println!("bc");
-                return (s, dir, false);
-                // a háromszögön belül vagyunk
-            }
-
-            // abc_perp irányba van az origó
-            if abc_perp.dot(&-s[2].diff) > 0.0 {
-                (s, abc_perp, false)
-            // -abc_perp irányba van az origó
-            } else {
-                s.reverse();
-                (s, -abc_perp, false)
-            }
-            // let dot = abc_perp.dot(&-s[2].diff);
-            // if dot < -f64::EPSILON {
-            //     // println!("origin \"below\" triangle");
-            //     s.reverse();
-            //     (s, -abc_perp, false)
-            // } else if dot <= f64::EPSILON {
-            //     // println!("triangle contains origin");
-            //     (s, Vec3::zeros(), true)
-            // } else {
-            //     // println!("origin \"above\" triangle");
-            //     (s, abc_perp, false)
-            // }
-        }
-        4 => {
-            // Az origó nem lehet az abc háromszög "alatt" és a d pont "fölött".
-            // Az abc háromszögre vetítve az origó nem lehet a háromszögön kívül.
-            // Tehát az origó az abc alapú hasábban van.
-
-            // Az origó lehet az abd háromszög síkján kívül.
-            //   Ha ott van, akkor lehet ad vagy a bd oldalon kívül
-            //   vagy az abd háromszög "fölött".
-            let abd_perp =
-                (s[1].diff - s[0].diff).cross(&(s[3].diff - s[0].diff));
-            // Ha abd síkján kívül van
-            assert!(
-                abd_perp.dot(&(s[2].diff - s[3].diff)) < 0.0,
-                "abd={abd_perp:?}"
-            );
-            if abd_perp.dot(&-s[3].diff) > 0.0 {
-                // println!("origin \"above\" abd");
-                s.remove(2);
-                return tetrahedron_triangle_subcheck(s, abd_perp);
-            }
-
-            // Az origó lehet a bcd háromszög síkján kívül.
-            //   Ha ott van, akkor lehet bd vagy a cd oldalon kívül
-            //   vagy a bcd háromszög "fölött".
-            let bcd_perp =
-                (s[2].diff - s[1].diff).cross(&(s[3].diff - s[1].diff));
-            assert!(
-                bcd_perp.dot(&(s[0].diff - s[3].diff)) < 0.0,
-                "bcd={bcd_perp:?}"
-            );
-            if bcd_perp.dot(&-s[3].diff) > 0.0 {
-                // println!("origin \"above\" bcd");
-                s.remove(0);
-                return tetrahedron_triangle_subcheck(s, bcd_perp);
-            }
-
-            // Az origó lehet a cad háromszög síkján kívül.
-            //   Ha ott van, akkor lehet cd vagy a ad oldalon kívül
-            //   vagy a bcd háromszög "fölött".
-            let cad_perp =
-                (s[0].diff - s[2].diff).cross(&(s[3].diff - s[2].diff));
-            assert!(
-                cad_perp.dot(&(s[1].diff - s[3].diff)) < 0.0,
-                "cad={cad_perp:?}"
-            );
-            if cad_perp.dot(&-s[3].diff) > 0.0 {
-                // println!("origin \"above\" cad");
-                s.remove(1);
-                let (s1, s2) = s.split_at_mut(1);
-                std::mem::swap(&mut s1[0], &mut s2[0]);
-                return tetrahedron_triangle_subcheck(s, cad_perp);
-            }
-
-            // Ha nincs egyik háromszög síkján kívül sem, akkor a tetraéderben van.
-            (s, Vec3::zeros(), true)
-            // todo!()
-        }
-        _ => unreachable!(),
-    }
-}
-
-#[allow(clippy::similar_names)]
-fn tetrahedron_triangle_subcheck(
-    mut s: Vec<SimplexPoint>,
-    xyd_perp: Vec3,
-) -> (Vec<SimplexPoint>, Vec3, bool) {
-    assert!(s.len() == 3);
-    // xd-re merőleges, kifelé mutat
-    // dbg!(&xyd_perp);
-    let xd_perp = xyd_perp.cross(&(s[2].diff - s[0].diff));
-    // xd-n kívül van
-    if xd_perp.dot(&-s[2].diff) > 0.0 {
-        s.remove(1);
-        let dir = (s[1].diff - s[0].diff)
-            .cross(&-s[0].diff)
-            .cross(&(s[1].diff - s[0].diff));
-        // println!("xd");
-        return (s, dir, false);
-    }
-
-    // yd-re merőleges, kifelé mutat
-    let yd_perp = (s[2].diff - s[1].diff).cross(&xyd_perp);
-    // yd-n kívül van
-    if yd_perp.dot(&-s[2].diff) > 0.0 {
-        s.remove(0);
-        let dir = (s[1].diff - s[0].diff)
-            .cross(&-s[0].diff)
-            .cross(&(s[1].diff - s[0].diff));
-        // println!("yd");
-        return (s, dir, false);
-    }
-
-    (s, xyd_perp, false)
-}
-
-pub fn gjk2(a: &impl Support, b: &impl Support) -> GJKResult {
-    let mut s = Vec::with_capacity(5);
-    s.push(SimplexPoint::new(
+    s.push(SupportPoint::new(
         a,
         b,
         &Vec3::new(random(), random(), random()),
     ));
     let mut prev_dist = f64::INFINITY;
-    // println!("start");
     loop {
-        let closest_point: SimplexPoint;
+        let closest_point;
         (closest_point, s) = closest_simplex(s);
         let dist = closest_point.diff.magnitude();
-        // dbg!(dist);
-        assert!(dist <= prev_dist);
-        // if dist > prev_dist {
-        //     // return true;
-        //     dbg!(dist, prev_dist);
-        // }
-        if dist <= 0.01 {
-            // return (
-            //     closest_point.a,
-            //     closest_point.b,
-            //     todo!("calculate normal"),
-            // );
-            return GJKResult::UnknownContact;
+        debug_assert!(
+            dist <= prev_dist + TOLERANCE,
+            "prev_dist={prev_dist}, dist={dist}"
+        );
+        if s.len() == SIMPLEX_MAX_DIM {
+            return GJKResult::UnknownContact(s);
         }
-        if prev_dist - dist <= 0.001 {
+        debug_assert!(
+            dist > TOLERANCE,
+            "if dist={dist} is smaller than TOLERANCE={TOLERANCE} \
+             the simplex should have {SIMPLEX_MAX_DIM} points"
+        );
+        if prev_dist - dist <= TOLERANCE {
             if dist <= a.radius() + b.radius() {
                 let normal = closest_point.a - closest_point.b;
                 return GJKResult::Contact {
@@ -266,17 +68,16 @@ pub fn gjk2(a: &impl Support, b: &impl Support) -> GJKResult {
             return GJKResult::NoContact;
         }
         prev_dist = dist;
-        let new_point = SimplexPoint::new(a, b, &-closest_point.diff);
+        let new_point = SupportPoint::new(a, b, &-closest_point.diff);
         if !s.contains(&new_point) {
             s.push(new_point);
         }
     }
 }
 
-fn closest_simplex(s: Vec<SimplexPoint>) -> (SimplexPoint, Vec<SimplexPoint>) {
-    // dbg!(s.len());
+fn closest_simplex(s: Vec<SupportPoint>) -> (SupportPoint, Vec<SupportPoint>) {
     match s.len() {
-        0 => panic!("simplex has to contain at leas 1 point"),
+        0 => panic!("simplex has to contain at least 1 point"),
         // 1 => (s[0].clone(), s),
         len => {
             let diffs: Vec<_> =
@@ -293,32 +94,15 @@ fn closest_simplex(s: Vec<SimplexPoint>) -> (SimplexPoint, Vec<SimplexPoint>) {
                     a_data.push(v1.dot(v2));
                 }
             }
-            assert!(a_data.len() == len * len);
-            // assert!(a_data[0] == 1.0);
             let a = Matrix::from_vec_generic(Dyn(len), Dyn(len), a_data);
-            // assert!(a_inverse[0] == 1.0);
-
-            // let a_clone = a_inverse.clone();
             let det = a.determinant();
-            if det.abs() <= 0.0001 {
-                // Matrix is not invertible. This is usually caused by the
-                // vec of simplex points not being a simplex. We can resolve
-                // this by descending into all sub-simplices and choosing the
-                // closest one. This could be optimized by only descending into
-                // non-overlapping sub-simplices.
-
-                // println!("matrix not invertible");
-                // println!("matrix = {a_clone:?}");
-                // dbg!(&s);
-                // assert!(a_inverse[0] == 1.0);
-                // eprintln!("matrix determinant small ({det})");
-                let mut best: Option<(SimplexPoint, Vec<SimplexPoint>)> = None;
+            if det.abs() <= TOLERANCE {
+                let mut best: Option<(SupportPoint, Vec<SupportPoint>)> = None;
+                // TODO: looping over all possible sub-simplices is redundant
+                // need to figure out a way to reduce these iterations
                 for i in 0..len {
                     let mut new_s = s.clone();
                     new_s.swap_remove(i);
-                    // println!("removing {i}");
-                    // s.swap_remove(i);
-                    // println!("not invertible recursing");
                     let (point, new_s) = closest_simplex(new_s);
                     if best.is_none()
                         || point.diff.magnitude()
@@ -328,11 +112,6 @@ fn closest_simplex(s: Vec<SimplexPoint>) -> (SimplexPoint, Vec<SimplexPoint>) {
                     }
                 }
                 return best.unwrap();
-                // println!("using pseudo inverse");
-                // a_inverse = a_clone
-                //     .pseudo_inverse(0.01)
-                //     .inspect_err(|e| println!("{e}"))
-                //     .unwrap();
             }
             let a_inverse = a.try_inverse().expect("a is invertible");
             let mut b_data = Vec::with_capacity(len);
@@ -342,19 +121,6 @@ fn closest_simplex(s: Vec<SimplexPoint>) -> (SimplexPoint, Vec<SimplexPoint>) {
             }
             let b = Matrix::from_vec_generic(Dyn(len), Const::<1>, b_data);
             let multipliers = a_inverse * b;
-            // for (asdf, sp) in multipliers.iter().zip(&s) {
-            //     print!(
-            //         "{asdf} * ({}, {}, {}) + ",
-            //         sp.diff.x, sp.diff.y, sp.diff.z
-            //     );
-            // }
-            // let asdf = multipliers
-            //     .iter()
-            //     .zip(&s)
-            //     .map(|(t, v)| *t * v)
-            //     .reduce(|a, b| a + b)
-            //     .unwrap();
-            // println!(" = ({}, {}, {})", asdf.diff.x, asdf.diff.y, asdf.diff.z);
             if multipliers.iter().all(|v| v >= &0.0) {
                 (
                     multipliers
@@ -366,7 +132,7 @@ fn closest_simplex(s: Vec<SimplexPoint>) -> (SimplexPoint, Vec<SimplexPoint>) {
                     s,
                 )
             } else {
-                let mut best: Option<(SimplexPoint, Vec<SimplexPoint>)> = None;
+                let mut best: Option<(SupportPoint, Vec<SupportPoint>)> = None;
                 for i in multipliers
                     .iter()
                     .enumerate()
@@ -376,8 +142,6 @@ fn closest_simplex(s: Vec<SimplexPoint>) -> (SimplexPoint, Vec<SimplexPoint>) {
                 {
                     let mut new_s = s.clone();
                     new_s.swap_remove(i);
-                    // println!("removing {i}");
-                    // s.swap_remove(i);
                     let (point, new_s) = closest_simplex(new_s);
                     if best.is_none()
                         || point.diff.magnitude()
@@ -387,8 +151,6 @@ fn closest_simplex(s: Vec<SimplexPoint>) -> (SimplexPoint, Vec<SimplexPoint>) {
                     }
                 }
                 best.unwrap()
-                // println!("recursing");
-                // closest_simplex(s)
             }
         }
     }
@@ -397,15 +159,15 @@ fn closest_simplex(s: Vec<SimplexPoint>) -> (SimplexPoint, Vec<SimplexPoint>) {
 #[derive(Debug)]
 pub enum GJKResult {
     Contact { points: (Vec3, Vec3), normal: Vec3 },
-    UnknownContact,
+    UnknownContact(Vec<SupportPoint>),
     NoContact,
 }
 
-impl Mul<&SimplexPoint> for f64 {
-    type Output = SimplexPoint;
+impl Mul<&SupportPoint> for f64 {
+    type Output = SupportPoint;
 
-    fn mul(self, rhs: &SimplexPoint) -> Self::Output {
-        SimplexPoint {
+    fn mul(self, rhs: &SupportPoint) -> Self::Output {
+        SupportPoint {
             diff: self * rhs.diff,
             a: self * rhs.a,
             b: self * rhs.b,
@@ -413,7 +175,7 @@ impl Mul<&SimplexPoint> for f64 {
     }
 }
 
-impl Add for SimplexPoint {
+impl Add for SupportPoint {
     type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self::Output {
@@ -423,19 +185,3 @@ impl Add for SimplexPoint {
         self
     }
 }
-
-// impl Sum for SimplexPoint {
-//     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-//         todo!()
-//     }
-// }
-
-/*
-simplex = init
-prev dist = inf
-loop
-    p, simplex = closest point and simplex
-    assert distance didn't increase
-    compare distance to prev, exit if neccesary
-    add new point to simplex with direction -p
-*/
