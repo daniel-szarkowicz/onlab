@@ -175,6 +175,22 @@ impl MainScene {
         });
     }
 
+    fn preset_two_boxes(&mut self) {
+        self.objects.clear();
+        self.objects.push(Object {
+            position: Point3::new(0.0, 0.0, 0.0),
+            rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
+            mesh_scale: Vector3::new(1.5, 1.5, 1.5),
+            ..Object::new(&self.box_mesh, Collider::Box(1.5, 1.5, 1.5), 1.0)
+        });
+        self.objects.push(Object {
+            position: Point3::new(3.0, 0.0, 0.0),
+            rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
+            mesh_scale: Vector3::new(1.5, 1.5, 1.5),
+            ..Object::new(&self.box_mesh, Collider::Box(1.5, 1.5, 1.5), 1.0)
+        });
+    }
+
     fn preset_wrecking_ball(&mut self) {
         self.objects.clear();
         for x in -7..=7 {
@@ -182,14 +198,14 @@ impl MainScene {
                 for z in 0..10 {
                     self.objects.push(Object {
                         position: Point3::new(
-                            f64::from(x) * 1.0001,
-                            f64::from(y) * 1.0001,
+                            f64::from(x) * 1.01,
+                            f64::from(y) * 1.01,
                             f64::from(z) * 1.5,
                         ),
-                        mesh_scale: Vector3::new(0.5, 0.5, 0.5),
+                        mesh_scale: Vector3::new(1.0, 1.0, 1.0),
                         ..Object::new(
-                            &self.sphere_mesh,
-                            Collider::Sphere(0.5),
+                            &self.box_mesh,
+                            Collider::Box(1.0, 1.0, 1.0),
                             1.0,
                         )
                     });
@@ -419,6 +435,9 @@ impl MainScene {
         }
         if ui.button("Sphere and box").clicked() {
             self.preset_sphere_and_box();
+        }
+        if ui.button("Two boxes").clicked() {
+            self.preset_two_boxes();
         }
         if ui.button("Wrecking ball").clicked() {
             self.preset_wrecking_ball();
