@@ -165,22 +165,11 @@ impl Support for (Point3<f64>, Rotation3<f64>, Collider) {
         let (pos, rot, collider) = self;
         match collider {
             Collider::Sphere(_) => pos.coords,
-            Collider::Box(w, h, d) => [
-                Vector3::new(0.5, 0.5, 0.5),
-                Vector3::new(0.5, 0.5, -0.5),
-                Vector3::new(0.5, -0.5, 0.5),
-                Vector3::new(0.5, -0.5, -0.5),
-                Vector3::new(-0.5, 0.5, 0.5),
-                Vector3::new(-0.5, 0.5, -0.5),
-                Vector3::new(-0.5, -0.5, 0.5),
-                Vector3::new(-0.5, -0.5, -0.5),
-            ]
-            .into_iter()
-            .map(|v| rot * (Scale3::new(*w, *h, *d) * v) + pos.coords)
-            .map(|v| (v, v.dot(direction)))
-            .max_by(|(_, x), (_, y)| x.total_cmp(y))
-            .map(|(v, _)| v)
-            .unwrap(),
+            Collider::Box(w, h, d) => {
+                let model_dir = rot.inverse_transform_vector(direction);
+                let model_pos = 0.5 * model_dir.map(f64::signum);
+                rot * (Scale3::new(*w, *h, *d) * model_pos) + pos.coords
+            }
         }
     }
 
