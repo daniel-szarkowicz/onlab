@@ -38,7 +38,7 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
     let mut prev_dist = f64::INFINITY;
     loop {
         let closest_point;
-        (closest_point, s) = closest_simplex(s);
+        (closest_point, s) = closest_simplex::<false>(s);
         let dist = closest_point.diff.magnitude();
         // debug_assert!(
         //     dist <= prev_dist + TOLERANCE,
@@ -70,13 +70,33 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
         }
         prev_dist = dist;
         let new_point = SupportPoint::new(a, b, &-closest_point.diff);
-        if !s.contains(&new_point) {
-            s.push(new_point);
+        if closest_point
+            .diff
+            .dot(&(new_point.diff - closest_point.diff))
+            >= -TOLERANCE
+        {
+            // eprintln!("not further");
+            if dist <= a.radius() + b.radius() {
+                let normal = closest_point.a - closest_point.b;
+                return GJKResult::Contact {
+                    points: (
+                        closest_point.a
+                            - normal * a.radius() / (a.radius() + b.radius()),
+                        closest_point.b
+                            + normal * b.radius() / (a.radius() + b.radius()),
+                    ),
+                    normal: normal.normalize(),
+                };
+            }
+            return GJKResult::NoContact;
         }
+        s.push(new_point);
     }
 }
 
-fn closest_simplex(s: Vec<SupportPoint>) -> (SupportPoint, Vec<SupportPoint>) {
+fn closest_simplex<const DETCHECK: bool>(
+    mut s: Vec<SupportPoint>,
+) -> (SupportPoint, Vec<SupportPoint>) {
     match s.len() {
         0 => panic!("simplex has to contain at least 1 point"),
         // 1 => (s[0].clone(), s),
@@ -96,23 +116,16 @@ fn closest_simplex(s: Vec<SupportPoint>) -> (SupportPoint, Vec<SupportPoint>) {
                 }
             }
             let a = Matrix::from_vec_generic(Dyn(len), Dyn(len), a_data);
-            let det = a.determinant();
-            if det.abs() <= TOLERANCE {
-                let mut best: Option<(SupportPoint, Vec<SupportPoint>)> = None;
-                // TODO: looping over all possible sub-simplices is redundant
-                // need to figure out a way to reduce these iterations
-                for i in 0..len {
-                    let mut new_s = s.clone();
-                    new_s.swap_remove(i);
-                    let (point, new_s) = closest_simplex(new_s);
-                    if best.is_none()
-                        || point.diff.magnitude()
-                            < best.as_ref().unwrap().0.diff.magnitude()
-                    {
-                        best = Some((point, new_s));
-                    }
+            if DETCHECK {
+                let det = a.determinant();
+                if det.abs() <= TOLERANCE {
+                    // dbg!(s);
+                    // dbg!(det);
+                    // panic!();
+                    // eprintln!("det");
+                    s.pop();
+                    return closest_simplex::<DETCHECK>(s);
                 }
-                return best.unwrap();
             }
             let a_inverse = a.try_inverse().expect("a is invertible");
             let mut b_data = Vec::with_capacity(len);
@@ -143,7 +156,7 @@ fn closest_simplex(s: Vec<SupportPoint>) -> (SupportPoint, Vec<SupportPoint>) {
                 {
                     let mut new_s = s.clone();
                     new_s.swap_remove(i);
-                    let (point, new_s) = closest_simplex(new_s);
+                    let (point, new_s) = closest_simplex::<DETCHECK>(new_s);
                     if best.is_none()
                         || point.diff.magnitude()
                             < best.as_ref().unwrap().0.diff.magnitude()
@@ -172,7 +185,7 @@ pub fn epa(
         tmp.push(points[*v2].clone());
         tmp.push(points[*v3].clone());
         let closest_point;
-        (closest_point, tmp) = closest_simplex(tmp);
+        (closest_point, tmp) = closest_simplex::<true>(tmp);
         tmp.clear();
         closest_points.push(closest_point);
     }
@@ -246,7 +259,7 @@ pub fn epa(
             tmp.push(points[*v2].clone());
             tmp.push(points[*v3].clone());
             let closest_point;
-            (closest_point, tmp) = closest_simplex(tmp);
+            (closest_point, tmp) = closest_simplex::<true>(tmp);
             tmp.clear();
             new_closest_points.push(closest_point);
         }
