@@ -22,6 +22,9 @@ winit = { version = "0.29.10", features = [ "wayland" ] }
 linker = "/usr/bin/clang"
 rustflags = ["-Clink-arg=-fuse-ld=lld", "-Clink-arg=-Wl,--no-rosegment"]
 
+[build]
+rustflags = [ "-C target-cpu=native" ]
+
 [profile.dev]
 opt-level = 1
 
@@ -33,9 +36,10 @@ codegen-units = 1
 [profile.release]
 opt-level = 3
 debug = true
-lto = true
+lto = "fat"
 incremental = false
 codegen-units = 1
+panic = "abort"
 
 [lints.rust]
 let_underscore_drop = "warn"

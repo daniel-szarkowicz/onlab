@@ -103,13 +103,12 @@ impl MainScene {
         })
     }
 
-    fn preset_many_spheres(&mut self) {
+    fn preset_many_things(&mut self) {
         self.objects.clear();
         let mut random = rand::thread_rng();
         for x in -7..=7 {
             for y in 2..=16 {
                 for z in -7..=7 {
-                    let r = random.gen_range(0.25..=1.5);
                     self.objects.push(Object {
                         position: Point3::new(
                             f64::from(x)
@@ -120,12 +119,33 @@ impl MainScene {
                                 .mul_add(4.0, random.gen_range(-0.5..=0.5)),
                         ),
                         rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
-                        mesh_scale: Vector3::new(r as f32, r as f32, r as f32),
-                        ..Object::new(
-                            &self.sphere_mesh,
-                            Collider::Sphere(r),
-                            r * r * r * 8.0,
-                        )
+                        ..if random.gen() {
+                            let w = random.gen_range(0.5..=3.0);
+                            let h = random.gen_range(0.5..=3.0);
+                            let d = random.gen_range(0.5..=3.0);
+                            Object {
+                                mesh_scale: Vector3::new(
+                                    w as f32, h as f32, d as f32,
+                                ),
+                                ..Object::new(
+                                    &self.box_mesh,
+                                    Collider::Box(w, h, d),
+                                    w * h * d * 8.0,
+                                )
+                            }
+                        } else {
+                            let r = random.gen_range(0.25..=1.5);
+                            Object {
+                                mesh_scale: Vector3::new(
+                                    r as f32, r as f32, r as f32,
+                                ),
+                                ..Object::new(
+                                    &self.sphere_mesh,
+                                    Collider::Sphere(r),
+                                    r * r * r * 8.0,
+                                )
+                            }
+                        }
                     });
                 }
             }
@@ -195,17 +215,18 @@ impl MainScene {
         self.objects.clear();
         for x in -7..=7 {
             for y in -7..=7 {
-                for z in 0..10 {
+                for z in 0..3 {
                     self.objects.push(Object {
                         position: Point3::new(
                             f64::from(x) * 1.01,
                             f64::from(y) * 1.01,
-                            f64::from(z) * 1.5,
+                            f64::from(z) * 1.01,
                         ),
                         mesh_scale: Vector3::new(1.0, 1.0, 1.0),
                         ..Object::new(
                             &self.box_mesh,
                             Collider::Box(1.0, 1.0, 1.0),
+                            // Collider::Sphere(0.5),
                             1.0,
                         )
                     });
@@ -213,11 +234,13 @@ impl MainScene {
             }
         }
         self.objects.push(Object {
-            position: Point3::new(0.0, 0.0, -30.0),
-            mesh_scale: Vector3::new(2.0, 2.0, 2.0),
-            momentum: Vector3::new(0.0, 0.0, 450.0),
             // immovable: true,
-            ..Object::new(&self.sphere_mesh, Collider::Sphere(2.0), 20.0)
+            position: Point3::new(0.0, 0.0, -30.0),
+            momentum: Vector3::new(0.0, 0.0, 450.0),
+            // mesh_scale: Vector3::new(2.0, 2.0, 2.0),
+            // ..Object::new(&self.sphere_mesh, Collider::Sphere(2.0), 20.0)
+            mesh_scale: Vector3::new(4.0, 4.0, 4.0),
+            ..Object::new(&self.box_mesh, Collider::Box(4.0, 4.0, 4.0), 20.0)
         });
         self.objects.push(Object {
             immovable: true,
@@ -427,8 +450,8 @@ impl MainScene {
     fn draw_ui(&mut self, ui: &mut Ui, gl: &glow::Context) {
         ui.set_min_width(200.0);
         ui.checkbox(&mut self.paused, "Pause");
-        if ui.button("Many spheres").clicked() {
-            self.preset_many_spheres();
+        if ui.button("Many things").clicked() {
+            self.preset_many_things();
         }
         if ui.button("Two spheres").clicked() {
             self.preset_two_spheres();
@@ -439,7 +462,7 @@ impl MainScene {
         if ui.button("Two boxes").clicked() {
             self.preset_two_boxes();
         }
-        if ui.button("Wrecking ball").clicked() {
+        if ui.button("Wrecking ball (cube)").clicked() {
             self.preset_wrecking_ball();
         }
         if ui.button("Spinning ball").clicked() {

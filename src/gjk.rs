@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Sub};
 
 use nalgebra::{Const, Dyn, Matrix, Vector3};
 use rand::random;
@@ -7,6 +7,7 @@ type Vec3 = Vector3<f64>;
 
 const TOLERANCE: f64 = 1e-7;
 const SIMPLEX_MAX_DIM: usize = 4;
+const EPA_MAX_ITER: usize = 1000;
 
 pub trait Support {
     fn support(&self, direction: &Vec3) -> Vec3;
@@ -99,7 +100,13 @@ fn closest_simplex<const DETCHECK: bool>(
 ) -> (SupportPoint, Vec<SupportPoint>) {
     match s.len() {
         0 => panic!("simplex has to contain at least 1 point"),
-        // 1 => (s[0].clone(), s),
+        1 => (s[0].clone(), s),
+        // 2 if !DETCHECK => {
+        //     let t = (-s[1].diff.dot(&(s[0].diff - s[1].diff))
+        //         / (s[0].diff - s[1].diff).magnitude_squared())
+        //     .clamp(0.0, 1.0);
+        //     (s[1].clone() + t * &(s[0].clone() - s[1].clone()), s)
+        // }
         len => {
             let diffs: Vec<_> =
                 s.iter().skip(1).map(|p| p.diff - s[0].diff).collect();
@@ -189,7 +196,8 @@ pub fn epa(
         tmp.clear();
         closest_points.push(closest_point);
     }
-    for _ in 0..100 {
+    let mut iter = 0;
+    loop {
         // eprintln!("---------- LOOP ----------");
         // for point in &points {
         //     eprintln!("{:?}", point.diff);
@@ -214,7 +222,11 @@ pub fn epa(
         );
         if new_point.diff.dot(&closest_points[minface].diff)
             <= closest_points[minface].diff.magnitude_squared() + TOLERANCE
+            || iter == EPA_MAX_ITER
         {
+            if iter == EPA_MAX_ITER {
+                eprintln!("epa max reached");
+            }
             // todo!("we have found the best, we can return");
             return GJKResult::Contact {
                 points: (closest_points[minface].a, closest_points[minface].b),
@@ -265,9 +277,8 @@ pub fn epa(
         }
         faces.append(&mut new_faces);
         closest_points.append(&mut new_closest_points);
-        //
+        iter += 1;
     }
-    panic!("epa did not converge");
 }
 
 #[derive(Debug)]
@@ -296,6 +307,17 @@ impl Add for SupportPoint {
         self.diff += rhs.diff;
         self.a += rhs.a;
         self.b += rhs.b;
+        self
+    }
+}
+
+impl Sub for SupportPoint {
+    type Output = Self;
+
+    fn sub(mut self, rhs: Self) -> Self::Output {
+        self.diff -= rhs.diff;
+        self.a -= rhs.a;
+        self.b -= rhs.b;
         self
     }
 }
