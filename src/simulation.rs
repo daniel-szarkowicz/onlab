@@ -10,7 +10,7 @@
 
 use std::{collections::HashSet, vec::Vec};
 
-use nalgebra::{Point3, Vector3};
+use nalgebra::{Point3, Scale3, Translation3, Vector3, Vector4};
 
 use crate::{
     aabb::AABB,
@@ -92,7 +92,7 @@ impl Simulation {
                 // i == j should not be checked
                 if i < j {
                     if let Some(contact) =
-                        self.check_contact_gjk(&objects[i], &objects[j])
+                        self.check_contact(&objects[i], &objects[j])
                     {
                         contacts.push((i, j, contact));
                     }
@@ -176,6 +176,7 @@ impl Simulation {
     }
 
     #[allow(clippy::unused_self)]
+    #[allow(clippy::too_many_lines)]
     fn check_contact(&self, o1: &Object, o2: &Object) -> Option<Contact> {
         match (o1.collider, o2.collider) {
             (Collider::Sphere(r1), Collider::Sphere(r2)) => {
@@ -219,7 +220,85 @@ impl Simulation {
                     normal: world_space_normal.normalize(),
                 })
             }
-            _ => None,
+            (Collider::Box(..), Collider::Sphere(..)) => {
+                self.check_contact(o2, o1).map(|c| Contact {
+                    points: (c.points.1, c.points.0),
+                    normal: -c.normal,
+                })
+            }
+            (Collider::Box(w1, h1, d1), Collider::Box(w2, h2, d2)) => {
+                let t1 = Translation3::from(o1.position).to_homogeneous()
+                    * o1.rotation.to_homogeneous()
+                    * Scale3::new(w1, h1, d1).to_homogeneous();
+                let t1_inv = t1.try_inverse().unwrap();
+                let t2 = Translation3::from(o2.position).to_homogeneous()
+                    * o2.rotation.to_homogeneous()
+                    * Scale3::new(w2, h2, d2).to_homogeneous();
+                let t2_inv = t2.try_inverse().unwrap();
+                let points = [
+                    Vector4::new(0.5, 0.5, 0.5, 1.0),
+                    Vector4::new(0.5, 0.5, -0.5, 1.0),
+                    Vector4::new(0.5, -0.5, 0.5, 1.0),
+                    Vector4::new(0.5, -0.5, -0.5, 1.0),
+                    Vector4::new(-0.5, 0.5, 0.5, 1.0),
+                    Vector4::new(-0.5, 0.5, -0.5, 1.0),
+                    Vector4::new(-0.5, -0.5, 0.5, 1.0),
+                    Vector4::new(-0.5, -0.5, -0.5, 1.0),
+                ];
+                points
+                    .iter()
+                    .map(|v| t1_inv * (t2 * v))
+                    // .inspect(|p| assert_eq!(p.w, 1.0))
+                    .filter(|p| {
+                        p.x.abs() <= 0.5 && p.y.abs() <= 0.5 && p.z.abs() <= 0.5
+                    })
+                    .map(|p2| {
+                        let (i, _) = p2.xyz().map(f64::abs).argmax();
+                        let mut p1 = p2;
+                        let mut n = Vector4::zeros();
+                        p1[i] = p2[i].signum() / 2.0;
+                        n[i] = p2[i].signum();
+                        (
+                            t1 * p1,
+                            t1 * p2,
+                            -(n.transpose() * t1_inv).transpose(),
+                        )
+                    })
+                    .chain(
+                        points
+                            .iter()
+                            .map(|v| t2_inv * (t1 * v))
+                            // .inspect(|p| assert_eq!(p.w, 1.0))
+                            .filter(|p| {
+                                p.x.abs() <= 0.5
+                                    && p.y.abs() <= 0.5
+                                    && p.z.abs() <= 0.5
+                            })
+                            .map(|p1| {
+                                let (i, _) = p1.xyz().map(f64::abs).argmax();
+                                let mut p2 = p1;
+                                let mut n = Vector4::zeros();
+                                p2[i] = p1[i].signum() / 2.0;
+                                n[i] = p1[i].signum();
+                                (
+                                    t2 * p1,
+                                    t2 * p2,
+                                    (n.transpose() * t2_inv).transpose(),
+                                )
+                            }),
+                    )
+                    // .inspect(|p| {
+                    //     dbg!(p);
+                    // })
+                    .next()
+                    .map(|(p1, p2, normal)| Contact {
+                        points: (
+                            Point3::from(p1.xyz()),
+                            Point3::from(p2.xyz()),
+                        ),
+                        normal: normal.xyz().normalize(),
+                    })
+            }
         }
     }
 
