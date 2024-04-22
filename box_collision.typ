@@ -85,14 +85,23 @@ csúcs-oldal ütközést.
 //     - 2 t_1 t_2 V_1 V_2
 // $
 
-Adott kettő él a normál szerinti síkra vetítve, ezenek az éleknek kell a
-metszéspontja:
+// Adott kettő él a normál szerinti síkra vetítve, ezenek az éleknek kell a
+// metszéspontja:
 $
-  B + t_1 (A - B) = D + t_2 (C - D)\
-  x_B + t_1 (x_A - x_B) = x_D + t_2 (x_C - x_D)\
-  y_B + t_1 (y_A - y_B) = y_D + t_2 (y_C - y_D)\
-  (x_C - x_D)/(y_C - y_D) (y_B - y_D + t_1 (y_A - y_B)) = t_2 (x_C - x_D)
+  // B + t_1 (A - B) = D + t_2 (C - D)\
+  // x_B + t_1 (x_A - x_B) = x_D + t_2 (x_C - x_D)\
+  // y_B + t_1 (y_A - y_B) = y_D + t_2 (y_C - y_D)\
+  // (x_C - x_D)/(y_C - y_D) (y_B - y_D + t_1 (y_A - y_B)) = t_2 (x_C - x_D)
 // \
 // t_1 = (x_D - x_B + t_2 (x_C - x_D))/(x_A - x_B)\
 // t_2 = (y_B - y_D + t_1 (y_A - y_B))/(y_C - y_D)
+P_1 + t_1 V_1 + t_N N = P_2 + t_2 V_2\
+\
+x_P_1 + t_1 x_V_1 + t_N x_N = x_P_2 + t_2 x_V_2\
+y_P_1 + t_1 y_V_1 + t_N y_N = y_P_2 + t_2 y_V_2\
+z_P_1 + t_1 z_V_1 + t_N z_N = z_P_2 + t_2 z_V_2\
+\
+t_1 x_V_1 + t_N x_N - t_2 x_V_2 = x_P_2 - x_P_1\
+t_1 y_V_1 + t_N y_N - t_2 y_V_2 = y_P_2 - y_P_1\
+t_1 z_V_1 + t_N z_N - t_2 z_V_2 = z_P_2 - z_P_1\
 $

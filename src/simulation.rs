@@ -10,7 +10,7 @@
 
 use std::{collections::HashSet, vec::Vec};
 
-use nalgebra::{Point3, Scale3, Translation3, Vector3, Vector4};
+use nalgebra::{Matrix3, Point3, Scale3, Translation3, Vector3, Vector4};
 
 use crate::{
     aabb::AABB,
@@ -245,6 +245,56 @@ impl Simulation {
                     Vector4::new(-0.5, -0.5, 0.5, 1.0),
                     Vector4::new(-0.5, -0.5, -0.5, 1.0),
                 ];
+                let edges = [
+                    (
+                        Vector4::new(0.5, 0.5, 0.5, 1.0),
+                        Vector4::new(-1.0, 0.0, 0.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(0.5, 0.5, 0.5, 1.0),
+                        Vector4::new(0.0, -1.0, 0.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(0.5, 0.5, 0.5, 1.0),
+                        Vector4::new(0.0, 0.0, -1.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(0.5, -0.5, -0.5, 1.0),
+                        Vector4::new(-1.0, 0.0, 0.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(0.5, -0.5, -0.5, 1.0),
+                        Vector4::new(0.0, 1.0, 0.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(0.5, -0.5, -0.5, 1.0),
+                        Vector4::new(0.0, 0.0, 1.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(-0.5, 0.5, -0.5, 1.0),
+                        Vector4::new(1.0, 0.0, 0.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(-0.5, 0.5, -0.5, 1.0),
+                        Vector4::new(0.0, -1.0, 0.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(-0.5, 0.5, -0.5, 1.0),
+                        Vector4::new(0.0, 0.0, 1.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(-0.5, -0.5, 0.5, 1.0),
+                        Vector4::new(1.0, 0.0, 0.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(-0.5, -0.5, 0.5, 1.0),
+                        Vector4::new(0.0, 1.0, 0.0, 0.0),
+                    ),
+                    (
+                        Vector4::new(-0.5, -0.5, 0.5, 1.0),
+                        Vector4::new(0.0, 0.0, -1.0, 0.0),
+                    ),
+                ];
                 points
                     .iter()
                     .map(|v| t1_inv * (t2 * v))
@@ -287,9 +337,57 @@ impl Simulation {
                                 )
                             }),
                     )
-                    // .inspect(|p| {
-                    //     dbg!(p);
-                    // })
+                    .chain(
+                        edges
+                            .iter()
+                            .map(|(p, v)| {
+                                (t2_inv * (t1 * p), t2_inv * (t1 * v))
+                            })
+                            .flat_map(|(p1, v1)| {
+                                edges.iter().map(move |(p2, v2)| {
+                                    let n = v1.xyz().cross(&v2.xyz()).push(0.0);
+                                    (
+                                        p1,
+                                        *p2,
+                                        v1,
+                                        *v2,
+                                        if n.dot(&p1) < 0.0 { -n } else { n },
+                                    )
+                                })
+                            })
+                            .filter(|(p1, p2, _, _, n)| n.dot(p1) < n.dot(p2))
+                            .filter_map(|(p1, p2, v1, v2, n)| {
+                                let Some(a_inverse) = Matrix3::new(
+                                    v1.x, v1.y, v1.z, -v2.x, -v2.y, -v2.z, n.x,
+                                    n.y, n.z,
+                                )
+                                .transpose()
+                                .try_inverse() else {
+                                    return None;
+                                };
+                                let b = Vector3::new(
+                                    p2.x - p1.x,
+                                    p2.y - p1.y,
+                                    p2.z - p1.z,
+                                );
+                                let t = a_inverse * b;
+                                if t[0] < 0.0
+                                    || t[0] > 1.0
+                                    || t[1] < 0.0
+                                    || t[1] > 1.0
+                                {
+                                    return None;
+                                }
+                                Some((p1 + v1 * t[0], p2 + v2 * t[1], n))
+                            })
+                            .map(|(p1, p2, n)| {
+                                (
+                                    t2 * p1,
+                                    t2 * p2,
+                                    (n.transpose() * t2_inv).transpose(),
+                                )
+                            }),
+                    )
                     .next()
                     .map(|(p1, p2, normal)| Contact {
                         points: (
