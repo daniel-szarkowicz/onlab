@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul, Sub};
 
-use nalgebra::{Const, Dyn, Matrix, Vector3};
+use nalgebra::{Const, DimMin, Matrix, Vector3};
 use rand::random;
 
 type Vec3 = Vector3<f64>;
@@ -96,84 +96,84 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
 }
 
 fn closest_simplex<const DETCHECK: bool>(
-    mut s: Vec<SupportPoint>,
+    s: Vec<SupportPoint>,
 ) -> (SupportPoint, Vec<SupportPoint>) {
     match s.len() {
         0 => panic!("simplex has to contain at least 1 point"),
         1 => (s[0].clone(), s),
-        // 2 if !DETCHECK => {
-        //     let t = (-s[1].diff.dot(&(s[0].diff - s[1].diff))
-        //         / (s[0].diff - s[1].diff).magnitude_squared())
-        //     .clamp(0.0, 1.0);
-        //     (s[1].clone() + t * &(s[0].clone() - s[1].clone()), s)
-        // }
-        len => {
-            let diffs: Vec<_> =
-                s.iter().skip(1).map(|p| p.diff - s[0].diff).collect();
-            let mut a_data = Vec::with_capacity(len * len);
-            a_data.push(1.0);
-            #[allow(clippy::same_item_push)]
-            for _ in 0..len - 1 {
-                a_data.push(0.0);
-            }
-            for v1 in &diffs {
-                a_data.push(1.0);
-                for v2 in &diffs {
-                    a_data.push(v1.dot(v2));
-                }
-            }
-            let a = Matrix::from_vec_generic(Dyn(len), Dyn(len), a_data);
-            if DETCHECK {
-                let det = a.determinant();
-                if det.abs() <= TOLERANCE {
-                    // dbg!(s);
-                    // dbg!(det);
-                    // panic!();
-                    // eprintln!("det");
-                    s.pop();
-                    return closest_simplex::<DETCHECK>(s);
-                }
-            }
-            let a_inverse = a.try_inverse().expect("a is invertible");
-            let mut b_data = Vec::with_capacity(len);
-            b_data.push(1.0);
-            for v in &diffs {
-                b_data.push(-s[0].diff.dot(v));
-            }
-            let b = Matrix::from_vec_generic(Dyn(len), Const::<1>, b_data);
-            let multipliers = a_inverse * b;
-            if multipliers.iter().all(|v| v >= &0.0) {
-                (
-                    multipliers
-                        .iter()
-                        .zip(&s)
-                        .map(|(t, v)| *t * v)
-                        .reduce(|a, b| a + b)
-                        .unwrap(),
-                    s,
-                )
-            } else {
-                let mut best: Option<(SupportPoint, Vec<SupportPoint>)> = None;
-                for i in multipliers
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, d)| d < &&0.0)
-                    .map(|(i, _)| i)
-                    .rev()
-                {
-                    let mut new_s = s.clone();
-                    new_s.swap_remove(i);
-                    let (point, new_s) = closest_simplex::<DETCHECK>(new_s);
-                    if best.is_none()
-                        || point.diff.magnitude()
-                            < best.as_ref().unwrap().0.diff.magnitude()
-                    {
-                        best = Some((point, new_s));
-                    }
-                }
-                best.unwrap()
-            }
+        2 if !DETCHECK => {
+            let t = (-s[1].diff.dot(&(s[0].diff - s[1].diff))
+                / (s[0].diff - s[1].diff).magnitude_squared())
+            .clamp(0.0, 1.0);
+            (s[1].clone() + t * &(s[0].clone() - s[1].clone()), s)
         }
+        2 => closest_simplex_static::<2, DETCHECK>(s),
+        3 => closest_simplex_static::<3, DETCHECK>(s),
+        4 => closest_simplex_static::<4, DETCHECK>(s),
+        _ => unreachable!(),
+    }
+}
+
+fn closest_simplex_static<const N: usize, const DETCHECK: bool>(
+    mut s: Vec<SupportPoint>,
+) -> (SupportPoint, Vec<SupportPoint>)
+where
+    Const<N>: DimMin<Const<N>, Output = Const<N>>,
+{
+    let mut a = Matrix::zeros_generic(Const::<N>, Const::<N>);
+    a.data.0[0][0] = 1.0;
+    for i in 1..N {
+        a.data.0[i][0] = 1.0f64;
+        for j in 1..N {
+            a.data.0[i][j] =
+                (s[i].diff - s[0].diff).dot(&(s[j].diff - s[0].diff));
+        }
+    }
+    if DETCHECK {
+        let det = a.determinant();
+        if det.abs() <= TOLERANCE {
+            s.pop();
+            return closest_simplex::<DETCHECK>(s);
+        }
+    }
+    let a_inverse = a.try_inverse().expect("a is invertible");
+    let mut b = Matrix::zeros_generic(Const::<N>, Const::<1>);
+    b[0] = 1.0;
+    for i in 1..N {
+        b[i] = -s[0].diff.dot(&(s[i].diff - s[0].diff));
+    }
+    let multipliers = a_inverse * b;
+    let mut mi = multipliers
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d < &&0.0)
+        .map(|(i, _)| i);
+    if let Some(bad_i) = mi.next() {
+        let find_best = |mut s: Vec<_>, i, best: Option<(SupportPoint, _)>| {
+            s.swap_remove(i);
+            let (point, s) = closest_simplex::<DETCHECK>(s);
+            if let Some((bp, bs)) = best {
+                if point.diff.magnitude() < bp.diff.magnitude() {
+                    (point, s)
+                } else {
+                    (bp, bs)
+                }
+            } else {
+                (point, s)
+            }
+        };
+        let best = mi.fold(None, |best, i| Some(find_best(s.clone(), i, best)));
+        find_best(s, bad_i, best)
+    } else {
+        (
+            multipliers
+                .iter()
+                .zip(&s)
+                .map(|(t, v)| *t * v)
+                .reduce(|a, b| a + b)
+                .unwrap(),
+            s,
+        )
     }
 }
 

@@ -215,7 +215,7 @@ impl MainScene {
         self.objects.clear();
         for x in -7..=7 {
             for y in -7..=7 {
-                for z in 0..3 {
+                for z in 0..5 {
                     self.objects.push(Object {
                         position: Point3::new(
                             f64::from(x) * 1.01,
