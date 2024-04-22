@@ -85,21 +85,21 @@ impl Simulation {
         for (i, obj) in objects.iter().enumerate() {
             self.rtree.insert(obj.aabb().clone(), i);
         }
-        let mut contacts = Vec::with_capacity(objects.len());
-        for (i, obj) in objects.iter().enumerate() {
-            for &j in self.rtree.search(obj.aabb()) {
-                // i > j was already checked
-                // i == j should not be checked
-                if i < j {
-                    if let Some(contact) =
-                        self.check_contact_gjk(&objects[i], &objects[j])
-                    {
-                        contacts.push((i, j, contact));
-                    }
-                }
-            }
-        }
-        contacts.into()
+        objects
+            .iter()
+            .enumerate()
+            .flat_map(|(i, obj)| {
+                self.rtree
+                    .search(obj.aabb())
+                    .into_iter()
+                    .map(move |j| (i, *j))
+            })
+            .filter(|(i, j)| i < j)
+            .filter_map(|(i, j)| {
+                self.check_contact_gjk(&objects[i], &objects[j])
+                    .map(|contact| (i, j, contact))
+            })
+            .collect()
     }
 
     #[allow(dead_code)]
