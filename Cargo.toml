@@ -16,6 +16,7 @@ glutin-winit = "0.4.2"
 nalgebra = "0.32.4"
 rand = "0.8.5"
 raw-window-handle = "0.5.2"
+smallvec = "1.13.2"
 winit = { version = "0.29.10", features = [ "wayland" ] }
 
 [target.x86_64-unknown-linux-gnu]

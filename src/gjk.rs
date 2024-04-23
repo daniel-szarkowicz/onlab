@@ -2,6 +2,10 @@ use std::ops::{Add, Mul, Sub};
 
 use nalgebra::{Const, DimMin, Matrix, Vector3};
 use rand::random;
+use smallvec::SmallVec;
+
+type SimplexData = SmallVec<[SupportPoint; 5]>;
+// type SimplexData = Vec<SupportPoint>;
 
 type Vec3 = Vector3<f64>;
 
@@ -14,7 +18,7 @@ pub trait Support {
     fn radius(&self) -> f64;
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct SupportPoint {
     pub diff: Vec3,
     pub a: Vec3,
@@ -30,7 +34,7 @@ impl SupportPoint {
 }
 
 pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
-    let mut s = Vec::with_capacity(5);
+    let mut s = SimplexData::with_capacity(5);
     s.push(SupportPoint::new(
         a,
         b,
@@ -47,7 +51,7 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
         // );
         if s.len() == SIMPLEX_MAX_DIM {
             // return GJKResult::UnknownContact(s);
-            return epa(a, b, s);
+            return epa(a, b, s.into_vec());
         }
         // debug_assert!(
         //     dist > TOLERANCE,
@@ -96,8 +100,8 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
 }
 
 fn closest_simplex<const DETCHECK: bool>(
-    s: Vec<SupportPoint>,
-) -> (SupportPoint, Vec<SupportPoint>) {
+    s: SimplexData,
+) -> (SupportPoint, SimplexData) {
     match s.len() {
         0 => panic!("simplex has to contain at least 1 point"),
         1 => (s[0].clone(), s),
@@ -115,8 +119,8 @@ fn closest_simplex<const DETCHECK: bool>(
 }
 
 fn closest_simplex_static<const N: usize, const DETCHECK: bool>(
-    mut s: Vec<SupportPoint>,
-) -> (SupportPoint, Vec<SupportPoint>)
+    mut s: SimplexData,
+) -> (SupportPoint, SimplexData)
 where
     Const<N>: DimMin<Const<N>, Output = Const<N>>,
 {
@@ -149,19 +153,20 @@ where
         .filter(|(_, d)| d < &&0.0)
         .map(|(i, _)| i);
     if let Some(bad_i) = mi.next() {
-        let find_best = |mut s: Vec<_>, i, best: Option<(SupportPoint, _)>| {
-            s.swap_remove(i);
-            let (point, s) = closest_simplex::<DETCHECK>(s);
-            if let Some((bp, bs)) = best {
-                if point.diff.magnitude() < bp.diff.magnitude() {
-                    (point, s)
+        let find_best =
+            |mut s: SimplexData, i, best: Option<(SupportPoint, _)>| {
+                s.swap_remove(i);
+                let (point, s) = closest_simplex::<DETCHECK>(s);
+                if let Some((bp, bs)) = best {
+                    if point.diff.magnitude() < bp.diff.magnitude() {
+                        (point, s)
+                    } else {
+                        (bp, bs)
+                    }
                 } else {
-                    (bp, bs)
+                    (point, s)
                 }
-            } else {
-                (point, s)
-            }
-        };
+            };
         let best = mi.fold(None, |best, i| Some(find_best(s.clone(), i, best)));
         find_best(s, bad_i, best)
     } else {
@@ -186,7 +191,7 @@ pub fn epa(
     debug_assert_eq!(points.len(), 4);
     let mut faces = vec![[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 2, 3]];
     let mut closest_points = vec![];
-    let mut tmp = vec![];
+    let mut tmp = SimplexData::new();
     for [v1, v2, v3] in &faces {
         tmp.push(points[*v1].clone());
         tmp.push(points[*v2].clone());
