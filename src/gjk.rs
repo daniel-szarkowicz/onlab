@@ -22,14 +22,13 @@ pub trait Support {
 pub struct SupportPoint {
     pub diff: Vec3,
     pub a: Vec3,
-    pub b: Vec3,
 }
 
 impl SupportPoint {
     pub fn new(a: &impl Support, b: &impl Support, dir: &Vec3) -> Self {
         let a = a.support(dir);
         let b = b.support(&-dir);
-        Self { diff: a - b, a, b }
+        Self { diff: a - b, a }
     }
 }
 
@@ -60,12 +59,13 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
         // );
         if prev_dist - dist <= TOLERANCE {
             if dist <= a.radius() + b.radius() {
-                let normal = closest_point.a - closest_point.b;
+                let normal = closest_point.diff;
+                let b_point = closest_point.a - closest_point.diff;
                 return GJKResult::Contact {
                     points: (
                         closest_point.a
                             - normal * a.radius() / (a.radius() + b.radius()),
-                        closest_point.b
+                        b_point
                             + normal * b.radius() / (a.radius() + b.radius()),
                     ),
                     normal: normal.normalize(),
@@ -82,12 +82,13 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
         {
             // eprintln!("not further");
             if dist <= a.radius() + b.radius() {
-                let normal = closest_point.a - closest_point.b;
+                let normal = closest_point.diff;
+                let b_point = closest_point.a - closest_point.diff;
                 return GJKResult::Contact {
                     points: (
                         closest_point.a
                             - normal * a.radius() / (a.radius() + b.radius()),
-                        closest_point.b
+                        b_point
                             + normal * b.radius() / (a.radius() + b.radius()),
                     ),
                     normal: normal.normalize(),
@@ -233,8 +234,10 @@ pub fn epa(
                 eprintln!("epa max reached");
             }
             // todo!("we have found the best, we can return");
+            let b_point =
+                closest_points[minface].a - closest_points[minface].diff;
             return GJKResult::Contact {
-                points: (closest_points[minface].a, closest_points[minface].b),
+                points: (closest_points[minface].a, b_point),
                 normal: -closest_points[minface].diff.normalize(),
             };
         }
@@ -300,7 +303,6 @@ impl Mul<&SupportPoint> for f64 {
         SupportPoint {
             diff: self * rhs.diff,
             a: self * rhs.a,
-            b: self * rhs.b,
         }
     }
 }
@@ -311,7 +313,6 @@ impl Add for SupportPoint {
     fn add(mut self, rhs: Self) -> Self::Output {
         self.diff += rhs.diff;
         self.a += rhs.a;
-        self.b += rhs.b;
         self
     }
 }
@@ -322,7 +323,6 @@ impl Sub for SupportPoint {
     fn sub(mut self, rhs: Self) -> Self::Output {
         self.diff -= rhs.diff;
         self.a -= rhs.a;
-        self.b -= rhs.b;
         self
     }
 }
