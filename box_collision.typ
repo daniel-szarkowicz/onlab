@@ -105,3 +105,13 @@ t_1 x_V_1 + t_N x_N - t_2 x_V_2 = x_P_2 - x_P_1\
 t_1 y_V_1 + t_N y_N - t_2 y_V_2 = y_P_2 - y_P_1\
 t_1 z_V_1 + t_N z_N - t_2 z_V_2 = z_P_2 - z_P_1\
 $
+
+#pagebreak()
+=== Egyenes-síklap metszet
+Egyenes: $ e(t) = P + t dot V $
+Sík: $ x = 0.5 $
+Metszet: $
+  x_P + t dot x_V = 0.5\
+  t = (0.5 - x_P)/x_v\
+  "ha" x_V = 0, "akkor az egyenes párhuzamos a síkkal és nincs metszet"\
+$
