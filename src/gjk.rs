@@ -12,6 +12,8 @@ type Vec3 = Vector3<f64>;
 const TOLERANCE: f64 = 1e-7;
 const SIMPLEX_MAX_DIM: usize = 4;
 const EPA_MAX_ITER: usize = 1000;
+const GJK_PREDICATE_MAX_ITER: usize = 40;
+const GJK_CLOSEST_POINT_MAX_ITER: usize = 10;
 
 pub trait Support {
     fn support(&self, direction: &Vec3) -> Vec3;
@@ -33,23 +35,191 @@ impl SupportPoint {
 }
 
 pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
+    let mut dir = Vec3::new(random(), random(), random());
     let mut s = SimplexData::with_capacity(5);
-    s.push(SupportPoint::new(
-        a,
-        b,
-        &Vec3::new(random(), random(), random()),
-    ));
+    s.push(SupportPoint::new(a, b, &dir));
+    dir = -s[0].diff;
+    let mut prev_dir_dot = 0.0;
+    let mut dir_dot_diff = 0.0;
+    for _ in 0..GJK_PREDICATE_MAX_ITER {
+        debug_assert!(dir.magnitude() > f64::EPSILON);
+        dir.normalize_mut();
+        let new_point = SupportPoint::new(a, b, &dir);
+        let dir_dot = new_point.diff.dot(&dir);
+        dir_dot_diff = dir_dot - prev_dir_dot;
+        if dir_dot < 0.01 {
+            return gjk_closest_point(a, b, s);
+        }
+        prev_dir_dot = dir_dot;
+        s.push(new_point);
+        let contains_origin;
+        (s, dir, contains_origin) = best_simplex(s);
+        if contains_origin {
+            return epa(a, b, s.into_vec());
+        }
+    }
+    eprintln!(
+        "gjk didn't converge in {GJK_PREDICATE_MAX_ITER} steps \
+        (dir_dot = {prev_dir_dot:0.10}, diff = {dir_dot_diff:+0.10})"
+    );
+    gjk_closest_point(a, b, s)
+}
+
+#[allow(clippy::similar_names)]
+fn best_simplex(mut s: SimplexData) -> (SimplexData, Vec3, bool) {
+    match s.len() {
+        1 => {
+            let dir = -s[0].diff;
+            (s, dir, false)
+        }
+        2 => {
+            let dir = (s[1].diff - s[0].diff)
+                .cross(&-s[0].diff)
+                .cross(&(s[1].diff - s[0].diff));
+            (s, dir, false)
+        }
+        3 => {
+            // háromszög síkjára merőleges
+            let abc_perp =
+                (s[1].diff - s[0].diff).cross(&(s[2].diff - s[0].diff));
+
+            // háromszögből kifele mutat, ac-re merőleges
+            let ac_perp = abc_perp.cross(&(s[2].diff - s[0].diff));
+            // ha az origó egy irányba van az oldal normáljával
+            if ac_perp.dot(&-s[2].diff) > 0.0 {
+                // b-t kivesszük, mert nem kell
+                s.remove(1);
+                let dir = (s[1].diff - s[0].diff)
+                    .cross(&-s[0].diff)
+                    .cross(&(s[1].diff - s[0].diff));
+                return (s, dir, false);
+            }
+
+            // háromszögből kifele mutat, bc-re merőleges
+            let bc_perp = (s[2].diff - s[1].diff).cross(&abc_perp);
+            // ha az origó egy irányba van az oldal normáljával
+            if bc_perp.dot(&-s[2].diff) > 0.0 {
+                // a-t kivesszük, mert nem kell
+                s.remove(0);
+                let dir = (s[1].diff - s[0].diff)
+                    .cross(&-s[0].diff)
+                    .cross(&(s[1].diff - s[0].diff));
+                return (s, dir, false);
+                // a háromszögön belül vagyunk
+            }
+
+            // abc_perp irányba van az origó
+            if abc_perp.dot(&-s[2].diff) > 0.0 {
+                (s, abc_perp, false)
+            // -abc_perp irányba van az origó
+            } else {
+                s.reverse();
+                (s, -abc_perp, false)
+            }
+        }
+        4 => {
+            // Az origó nem lehet az abc háromszög "alatt" és a d pont "fölött".
+            // Az abc háromszögre vetítve az origó nem lehet a háromszögön kívül.
+            // Tehát az origó az abc alapú hasábban van.
+
+            // Az origó lehet az abd háromszög síkján kívül.
+            //   Ha ott van, akkor lehet ad vagy a bd oldalon kívül
+            //   vagy az abd háromszög "fölött".
+            let abd_perp =
+                (s[1].diff - s[0].diff).cross(&(s[3].diff - s[0].diff));
+            // Ha abd síkján kívül van
+            debug_assert!(
+                abd_perp.dot(&(s[2].diff - s[3].diff)) < 0.0,
+                "abd={abd_perp:?}"
+            );
+            if abd_perp.dot(&-s[3].diff) > 0.0 {
+                s.remove(2);
+                return tetrahedron_triangle_subcheck(s, abd_perp);
+            }
+
+            // Az origó lehet a bcd háromszög síkján kívül.
+            //   Ha ott van, akkor lehet bd vagy a cd oldalon kívül
+            //   vagy a bcd háromszög "fölött".
+            let bcd_perp =
+                (s[2].diff - s[1].diff).cross(&(s[3].diff - s[1].diff));
+            debug_assert!(
+                bcd_perp.dot(&(s[0].diff - s[3].diff)) < 0.0,
+                "bcd={bcd_perp:?}"
+            );
+            if bcd_perp.dot(&-s[3].diff) > 0.0 {
+                s.remove(0);
+                return tetrahedron_triangle_subcheck(s, bcd_perp);
+            }
+
+            // Az origó lehet a cad háromszög síkján kívül.
+            //   Ha ott van, akkor lehet cd vagy a ad oldalon kívül
+            //   vagy a bcd háromszög "fölött".
+            let cad_perp =
+                (s[0].diff - s[2].diff).cross(&(s[3].diff - s[2].diff));
+            debug_assert!(
+                cad_perp.dot(&(s[1].diff - s[3].diff)) < 0.0,
+                "cad={cad_perp:?}"
+            );
+            if cad_perp.dot(&-s[3].diff) > 0.0 {
+                s.remove(1);
+                let (s1, s2) = s.split_at_mut(1);
+                std::mem::swap(&mut s1[0], &mut s2[0]);
+                return tetrahedron_triangle_subcheck(s, cad_perp);
+            }
+
+            // Ha nincs egyik háromszög síkján kívül sem, akkor a tetraéderben van.
+            (s, Vec3::zeros(), true)
+        }
+        _ => unreachable!(),
+    }
+}
+
+#[allow(clippy::similar_names)]
+fn tetrahedron_triangle_subcheck(
+    mut s: SimplexData,
+    xyd_perp: Vec3,
+) -> (SimplexData, Vec3, bool) {
+    debug_assert!(s.len() == 3);
+    // xd-re merőleges, kifelé mutat
+    let xd_perp = xyd_perp.cross(&(s[2].diff - s[0].diff));
+    // xd-n kívül van
+    if xd_perp.dot(&-s[2].diff) > 0.0 {
+        s.remove(1);
+        let dir = (s[1].diff - s[0].diff)
+            .cross(&-s[0].diff)
+            .cross(&(s[1].diff - s[0].diff));
+        return (s, dir, false);
+    }
+
+    // yd-re merőleges, kifelé mutat
+    let yd_perp = (s[2].diff - s[1].diff).cross(&xyd_perp);
+    // yd-n kívül van
+    if yd_perp.dot(&-s[2].diff) > 0.0 {
+        s.remove(0);
+        let dir = (s[1].diff - s[0].diff)
+            .cross(&-s[0].diff)
+            .cross(&(s[1].diff - s[0].diff));
+        return (s, dir, false);
+    }
+    (s, xyd_perp, false)
+}
+
+pub fn gjk_closest_point(
+    a: &impl Support,
+    b: &impl Support,
+    mut s: SimplexData,
+) -> GJKResult {
     let mut prev_dist = f64::INFINITY;
-    loop {
-        let closest_point;
-        (closest_point, s) = closest_simplex::<false>(s);
+    let mut closest_point;
+    (closest_point, s) = closest_simplex::<false>(s);
+    let mut dist_diff = 0.0;
+    for _ in 0..GJK_CLOSEST_POINT_MAX_ITER {
         let dist = closest_point.diff.magnitude();
         // debug_assert!(
         //     dist <= prev_dist + TOLERANCE,
         //     "prev_dist={prev_dist}, dist={dist}"
         // );
         if s.len() == SIMPLEX_MAX_DIM {
-            // return GJKResult::UnknownContact(s);
             return epa(a, b, s.into_vec());
         }
         // debug_assert!(
@@ -57,21 +227,9 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
         //     "if dist={dist} is smaller than TOLERANCE={TOLERANCE} \
         //      the simplex should have {SIMPLEX_MAX_DIM} points"
         // );
+        dist_diff = prev_dist - dist;
         if prev_dist - dist <= TOLERANCE {
-            if dist <= a.radius() + b.radius() {
-                let normal = closest_point.diff;
-                let b_point = closest_point.a - closest_point.diff;
-                return GJKResult::Contact {
-                    points: (
-                        closest_point.a
-                            - normal * a.radius() / (a.radius() + b.radius()),
-                        b_point
-                            + normal * b.radius() / (a.radius() + b.radius()),
-                    ),
-                    normal: normal.normalize(),
-                };
-            }
-            return GJKResult::NoContact;
+            return closest_point_to_contact(a, b, closest_point);
         }
         prev_dist = dist;
         let new_point = SupportPoint::new(a, b, &-closest_point.diff);
@@ -80,23 +238,36 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
             .dot(&(new_point.diff - closest_point.diff))
             >= -TOLERANCE
         {
-            // eprintln!("not further");
-            if dist <= a.radius() + b.radius() {
-                let normal = closest_point.diff;
-                let b_point = closest_point.a - closest_point.diff;
-                return GJKResult::Contact {
-                    points: (
-                        closest_point.a
-                            - normal * a.radius() / (a.radius() + b.radius()),
-                        b_point
-                            + normal * b.radius() / (a.radius() + b.radius()),
-                    ),
-                    normal: normal.normalize(),
-                };
-            }
-            return GJKResult::NoContact;
+            return closest_point_to_contact(a, b, closest_point);
         }
         s.push(new_point);
+        (closest_point, s) = closest_simplex::<false>(s);
+    }
+    eprintln!(
+        "gjk_closest_point didn't converge in {GJK_CLOSEST_POINT_MAX_ITER} \
+        steps (dist = {prev_dist:0.10}, diff = {dist_diff:0.10})"
+    );
+    closest_point_to_contact(a, b, closest_point)
+}
+
+fn closest_point_to_contact(
+    a: &impl Support,
+    b: &impl Support,
+    closest_point: SupportPoint,
+) -> GJKResult {
+    if closest_point.diff.magnitude() <= a.radius() + b.radius() {
+        let normal = closest_point.diff;
+        let b_point = closest_point.a - closest_point.diff;
+        GJKResult::Contact {
+            points: (
+                closest_point.a
+                    - normal * a.radius() / (a.radius() + b.radius()),
+                b_point + normal * b.radius() / (a.radius() + b.radius()),
+            ),
+            normal: normal.normalize(),
+        }
+    } else {
+        GJKResult::NoContact
     }
 }
 
