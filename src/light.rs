@@ -26,22 +26,24 @@ pub struct DirectionalLight {
     direction: Vector3<f32>,
     shadow_buffer: NativeFramebuffer,
     shadow_map: NativeTexture,
+    depth_map: NativeTexture,
     ambient_color: [f32; 3],
     emissive_color: [f32; 3],
     view_projs: [Matrix4<f32>; SHADOW_LAYERS as usize],
 }
 
 impl DirectionalLight {
+    #[allow(clippy::too_many_lines)]
     pub fn new(gl: &glow::Context) -> Self {
         #[allow(clippy::cast_possible_wrap)]
-        let (shadow_buffer, shadow_map) = unsafe {
+        let (shadow_buffer, shadow_map, depth_map) = unsafe {
             let shadow_buffer = gl.create_framebuffer().unwrap();
             let depth_map = gl.create_texture().unwrap();
             gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(depth_map));
             gl.tex_image_3d(
                 glow::TEXTURE_2D_ARRAY,
                 0,
-                glow::DEPTH_COMPONENT32F as i32,
+                glow::DEPTH_COMPONENT as i32,
                 SHADOW_WIDTH,
                 SHADOW_HEIGHT,
                 SHADOW_LAYERS,
@@ -49,6 +51,42 @@ impl DirectionalLight {
                 glow::DEPTH_COMPONENT,
                 glow::FLOAT,
                 None,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D_ARRAY,
+                glow::TEXTURE_MIN_FILTER,
+                glow::LINEAR as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D_ARRAY,
+                glow::TEXTURE_MAG_FILTER,
+                glow::LINEAR as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D_ARRAY,
+                glow::TEXTURE_WRAP_S,
+                glow::CLAMP_TO_BORDER as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D_ARRAY,
+                glow::TEXTURE_WRAP_T,
+                glow::CLAMP_TO_BORDER as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D_ARRAY,
+                glow::TEXTURE_COMPARE_MODE,
+                glow::COMPARE_REF_TO_TEXTURE as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D_ARRAY,
+                glow::TEXTURE_COMPARE_FUNC,
+                glow::GEQUAL as i32,
+            );
+            let border_color = [1.0, 1.0, 1.0, 1.0];
+            gl.tex_parameter_f32_slice(
+                glow::TEXTURE_2D_ARRAY,
+                glow::TEXTURE_BORDER_COLOR,
+                &border_color,
             );
             let shadow_map = gl.create_texture().unwrap();
             gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(shadow_map));
@@ -116,12 +154,13 @@ impl DirectionalLight {
             gl.draw_buffer(glow::COLOR_ATTACHMENT0);
             gl.read_buffer(glow::NONE);
             gl.bind_framebuffer(glow::FRAMEBUFFER, None);
-            (shadow_buffer, shadow_map)
+            (shadow_buffer, shadow_map, depth_map)
         };
         Self {
             direction: Vector3::new(-1.0, -1.0, 1.0).normalize(),
             shadow_buffer,
             shadow_map,
+            depth_map,
             ambient_color: [0.3; 3],
             emissive_color: [0.7; 3],
             view_projs: [Matrix4::identity(); SHADOW_LAYERS as usize],
@@ -208,8 +247,17 @@ impl DirectionalLight {
     /// as `glow::TEXTURE_2D_ARRAY`.
     #[deprecated]
     #[must_use]
-    pub const unsafe fn native_texture(&self) -> &NativeTexture {
+    pub const unsafe fn shadow_map_texture(&self) -> &NativeTexture {
         &self.shadow_map
+    }
+
+    /// # Safety
+    /// The texture should not be written to, the texture should be bound
+    /// as `glow::TEXTURE_2D_ARRAY`.
+    #[deprecated]
+    #[must_use]
+    pub const unsafe fn depth_map_texture(&self) -> &NativeTexture {
+        &self.depth_map
     }
 
     #[deprecated]

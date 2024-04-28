@@ -11,6 +11,7 @@ uniform struct {
   vec3 emissive_color;
   mat4 matrices[MAX_LAYERS];
   sampler2DArray shadow_map;
+  sampler2DArrayShadow depth_map;
 } directional_lights[MAX_LIGHTS];
 
 uniform mat4 model;

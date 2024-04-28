@@ -334,7 +334,10 @@ impl MainScene {
             }
         }
         ctx.render_state.set_cull_face(glow::BACK);
-        unsafe { ctx.gl.disable(glow::DEPTH_TEST) };
+        unsafe {
+            ctx.gl.disable(glow::DEPTH_TEST);
+            ctx.gl.depth_mask(false);
+        }
         // bind blur shader
         ctx.render_state.set_program(&self.shadow_blur_program);
         ctx.render_state
@@ -345,7 +348,7 @@ impl MainScene {
                 ctx.render_state.set_texture_2d_array_uniform(
                     "shadow_map",
                     0,
-                    *light.native_texture(),
+                    *light.shadow_map_texture(),
                 );
             }
             // bind temp texture as output framebuffer
@@ -371,7 +374,10 @@ impl MainScene {
             // draw call
             unsafe { ctx.render_state.draw_mesh(&self.rectangle_mesh) };
         }
-        unsafe { ctx.gl.enable(glow::DEPTH_TEST) };
+        unsafe {
+            ctx.gl.enable(glow::DEPTH_TEST);
+            ctx.gl.depth_mask(true);
+        }
         ctx.render_state.unset_framebuffer();
         ctx.render_state.set_viewport(
             0,
@@ -408,8 +414,13 @@ impl MainScene {
             unsafe {
                 ctx.render_state.set_texture_2d_array_uniform(
                     &format!("{prefix}.shadow_map"),
-                    i as u32,
-                    *light.native_texture(),
+                    (2 * i) as u32,
+                    *light.shadow_map_texture(),
+                );
+                ctx.render_state.set_texture_2d_array_uniform(
+                    &format!("{prefix}.depth_map"),
+                    (2 * i + 1) as u32,
+                    *light.depth_map_texture(),
                 );
             }
         }
