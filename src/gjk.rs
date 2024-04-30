@@ -48,6 +48,15 @@ fn best_simplex(mut s: SimplexData) -> (SimplexData, Vec3, bool) {
             (s, dir, false)
         }
         2 => {
+            let ab = s[1].diff - s[0].diff;
+            if ab.dot(&-s[0].diff) < 0.0 {
+                s.remove(0);
+                return best_simplex(s);
+            }
+            if ab.dot(&-s[1].diff) > 0.0 {
+                s.remove(1);
+                return best_simplex(s);
+            }
             let dir = (s[1].diff - s[0].diff)
                 .cross(&-s[0].diff)
                 .cross(&(s[1].diff - s[0].diff));
@@ -64,10 +73,7 @@ fn best_simplex(mut s: SimplexData) -> (SimplexData, Vec3, bool) {
             if ac_perp.dot(&-s[2].diff) > 0.0 {
                 // b-t kivesszük, mert nem kell
                 s.remove(1);
-                let dir = (s[1].diff - s[0].diff)
-                    .cross(&-s[0].diff)
-                    .cross(&(s[1].diff - s[0].diff));
-                return (s, dir, false);
+                return best_simplex(s);
             }
 
             // háromszögből kifele mutat, bc-re merőleges
@@ -76,11 +82,13 @@ fn best_simplex(mut s: SimplexData) -> (SimplexData, Vec3, bool) {
             if bc_perp.dot(&-s[2].diff) > 0.0 {
                 // a-t kivesszük, mert nem kell
                 s.remove(0);
-                let dir = (s[1].diff - s[0].diff)
-                    .cross(&-s[0].diff)
-                    .cross(&(s[1].diff - s[0].diff));
-                return (s, dir, false);
-                // a háromszögön belül vagyunk
+                return best_simplex(s);
+            }
+
+            let ab_perp = (s[1].diff - s[0].diff).cross(&abc_perp);
+            if ab_perp.dot(&-s[1].diff) > 0.0 {
+                s.remove(2);
+                return best_simplex(s);
             }
 
             // abc_perp irányba van az origó
@@ -295,39 +303,18 @@ where
         b[i] = -s[0].diff.dot(&(s[i].diff - s[0].diff));
     }
     let multipliers = a_inverse * b;
-    let mut mi = multipliers
-        .iter()
-        .enumerate()
-        .filter(|(_, d)| d < &&0.0)
-        .map(|(i, _)| i);
-    if let Some(bad_i) = mi.next() {
-        let find_best =
-            |mut s: SimplexData, i, best: Option<(SupportPoint, _)>| {
-                s.swap_remove(i);
-                let (point, s) = closest_simplex::<DETCHECK>(s);
-                if let Some((bp, bs)) = best {
-                    if point.diff.magnitude() < bp.diff.magnitude() {
-                        (point, s)
-                    } else {
-                        (bp, bs)
-                    }
-                } else {
-                    (point, s)
-                }
-            };
-        let best = mi.fold(None, |best, i| Some(find_best(s.clone(), i, best)));
-        find_best(s, bad_i, best)
-    } else {
-        (
-            multipliers
-                .iter()
-                .zip(&s)
-                .map(|(t, v)| *t * v)
-                .reduce(|a, b| a + b)
-                .unwrap(),
-            s,
-        )
-    }
+    (
+        multipliers
+            .iter()
+            .inspect(|m| {
+                assert!(m >= &&0.0, "invalid multiplier m={m}, should be >= 0");
+            })
+            .zip(&s)
+            .map(|(t, v)| *t * v)
+            .reduce(|a, b| a + b)
+            .unwrap(),
+        s,
+    )
 }
 
 pub fn epa(
