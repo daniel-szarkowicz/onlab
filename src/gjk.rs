@@ -12,8 +12,7 @@ type Vec3 = Vector3<f64>;
 const TOLERANCE: f64 = 1e-7;
 const SIMPLEX_MAX_DIM: usize = 4;
 const EPA_MAX_ITER: usize = 1000;
-const GJK_PREDICATE_MAX_ITER: usize = 40;
-const GJK_CLOSEST_POINT_MAX_ITER: usize = 10;
+const GJK_CLOSEST_POINT_MAX_ITER: usize = 12;
 
 pub trait Support {
     fn support(&self, direction: &Vec3) -> Vec3;
@@ -35,33 +34,9 @@ impl SupportPoint {
 }
 
 pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
-    let mut dir = Vec3::new(random(), random(), random());
+    let dir = Vec3::new(random(), random(), random());
     let mut s = SimplexData::with_capacity(5);
     s.push(SupportPoint::new(a, b, &dir));
-    dir = -s[0].diff;
-    let mut prev_dir_dot = 0.0;
-    let mut dir_dot_diff = 0.0;
-    for _ in 0..GJK_PREDICATE_MAX_ITER {
-        debug_assert!(dir.magnitude() > f64::EPSILON);
-        dir.normalize_mut();
-        let new_point = SupportPoint::new(a, b, &dir);
-        let dir_dot = new_point.diff.dot(&dir);
-        dir_dot_diff = dir_dot - prev_dir_dot;
-        if dir_dot < 0.01 {
-            return gjk_closest_point(a, b, s);
-        }
-        prev_dir_dot = dir_dot;
-        s.push(new_point);
-        let contains_origin;
-        (s, dir, contains_origin) = best_simplex(s);
-        if contains_origin {
-            return epa(a, b, s.into_vec());
-        }
-    }
-    eprintln!(
-        "gjk didn't converge in {GJK_PREDICATE_MAX_ITER} steps \
-        (dir_dot = {prev_dir_dot:0.10}, diff = {dir_dot_diff:+0.10})"
-    );
     gjk_closest_point(a, b, s)
 }
 
@@ -204,7 +179,7 @@ fn tetrahedron_triangle_subcheck(
     (s, xyd_perp, false)
 }
 
-pub fn gjk_closest_point(
+fn gjk_closest_point(
     a: &impl Support,
     b: &impl Support,
     mut s: SimplexData,
@@ -274,6 +249,7 @@ fn closest_point_to_contact(
 fn closest_simplex<const DETCHECK: bool>(
     s: SimplexData,
 ) -> (SupportPoint, SimplexData) {
+    let (s, _, _) = best_simplex(s);
     match s.len() {
         0 => panic!("simplex has to contain at least 1 point"),
         1 => (s[0].clone(), s),
@@ -380,14 +356,17 @@ pub fn epa(
         //     eprintln!("{:?}", point.diff);
         // }
         // dbg!(&faces);
-        let minface = closest_points
+        let Some(minface) = closest_points
             .iter()
             .enumerate()
             .min_by(|(_, a), (_, b)| {
                 a.diff.magnitude().total_cmp(&b.diff.magnitude())
             })
             .map(|(i, _)| i)
-            .unwrap();
+        else {
+            eprintln!("math has failed!");
+            return GJKResult::NoContact;
+        };
         let new_point = SupportPoint::new(a, b, &closest_points[minface].diff);
         // dbg!(&closest_points[minface].diff);
         // dbg!(&new_point.diff);
