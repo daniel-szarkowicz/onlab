@@ -4,7 +4,7 @@ use nalgebra::{Const, DimMin, Matrix, Vector3};
 use rand::random;
 use smallvec::SmallVec;
 
-type SimplexData = SmallVec<[SupportPoint; 5]>;
+type SimplexData = SmallVec<[SupportPoint; 4]>;
 // type SimplexData = Vec<SupportPoint>;
 
 type Vec3 = Vector3<f64>;
@@ -12,7 +12,7 @@ type Vec3 = Vector3<f64>;
 const TOLERANCE: f64 = 1e-7;
 const SIMPLEX_MAX_DIM: usize = 4;
 const EPA_MAX_ITER: usize = 1000;
-const GJK_CLOSEST_POINT_MAX_ITER: usize = 12;
+const GJK_MAX_ITER: usize = 12;
 
 pub trait Support {
     fn support(&self, direction: &Vec3) -> Vec3;
@@ -34,18 +34,58 @@ impl SupportPoint {
 }
 
 pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
-    let dir = Vec3::new(random(), random(), random());
-    let mut s = SimplexData::with_capacity(5);
-    s.push(SupportPoint::new(a, b, &dir));
-    gjk_closest_point(a, b, s)
+    let mut s = SimplexData::with_capacity(4);
+    s.push(SupportPoint::new(
+        a,
+        b,
+        &Vec3::new(random(), random(), random()),
+    ));
+    let mut prev_dist = f64::INFINITY;
+    let mut closest_point = closest_simplex::<false>(&mut s);
+    let mut dist_diff = 0.0;
+    for _ in 0..GJK_MAX_ITER {
+        let dist = closest_point.diff.magnitude();
+        // debug_assert!(
+        //     dist <= prev_dist + TOLERANCE,
+        //     "prev_dist={prev_dist}, dist={dist}"
+        // );
+        if s.len() == SIMPLEX_MAX_DIM {
+            return epa(a, b, s.into_vec());
+        }
+        // debug_assert!(
+        //     dist > TOLERANCE,
+        //     "if dist={dist} is smaller than TOLERANCE={TOLERANCE} \
+        //      the simplex should have {SIMPLEX_MAX_DIM} points"
+        // );
+        dist_diff = prev_dist - dist;
+        if prev_dist - dist <= TOLERANCE {
+            return closest_point_to_contact(a, b, &closest_point);
+        }
+        prev_dist = dist;
+        let new_point = SupportPoint::new(a, b, &-closest_point.diff);
+        if closest_point
+            .diff
+            .dot(&(new_point.diff - closest_point.diff))
+            >= -TOLERANCE
+        {
+            return closest_point_to_contact(a, b, &closest_point);
+        }
+        s.push(new_point);
+        closest_point = closest_simplex::<false>(&mut s);
+    }
+    eprintln!(
+        "gjk didn't converge in {GJK_MAX_ITER} steps \
+        (dist = {prev_dist:0.10}, diff = {dist_diff:0.10})"
+    );
+    closest_point_to_contact(a, b, &closest_point)
 }
 
 #[allow(clippy::similar_names)]
-fn best_simplex(mut s: SimplexData) -> (SimplexData, Vec3, bool) {
+fn best_simplex(s: &mut SimplexData) -> (Vec3, bool) {
     match s.len() {
         1 => {
             let dir = -s[0].diff;
-            (s, dir, false)
+            (dir, false)
         }
         2 => {
             let ab = s[1].diff - s[0].diff;
@@ -60,7 +100,7 @@ fn best_simplex(mut s: SimplexData) -> (SimplexData, Vec3, bool) {
             let dir = (s[1].diff - s[0].diff)
                 .cross(&-s[0].diff)
                 .cross(&(s[1].diff - s[0].diff));
-            (s, dir, false)
+            (dir, false)
         }
         3 => {
             // háromszög síkjára merőleges
@@ -93,11 +133,11 @@ fn best_simplex(mut s: SimplexData) -> (SimplexData, Vec3, bool) {
 
             // abc_perp irányba van az origó
             if abc_perp.dot(&-s[2].diff) > 0.0 {
-                (s, abc_perp, false)
+                (abc_perp, false)
             // -abc_perp irányba van az origó
             } else {
                 s.reverse();
-                (s, -abc_perp, false)
+                (-abc_perp, false)
             }
         }
         4 => {
@@ -151,7 +191,7 @@ fn best_simplex(mut s: SimplexData) -> (SimplexData, Vec3, bool) {
             }
 
             // Ha nincs egyik háromszög síkján kívül sem, akkor a tetraéderben van.
-            (s, Vec3::zeros(), true)
+            (Vec3::zeros(), true)
         }
         _ => unreachable!(),
     }
@@ -159,9 +199,9 @@ fn best_simplex(mut s: SimplexData) -> (SimplexData, Vec3, bool) {
 
 #[allow(clippy::similar_names)]
 fn tetrahedron_triangle_subcheck(
-    mut s: SimplexData,
+    s: &mut SimplexData,
     xyd_perp: Vec3,
-) -> (SimplexData, Vec3, bool) {
+) -> (Vec3, bool) {
     debug_assert!(s.len() == 3);
     // xd-re merőleges, kifelé mutat
     let xd_perp = xyd_perp.cross(&(s[2].diff - s[0].diff));
@@ -171,7 +211,7 @@ fn tetrahedron_triangle_subcheck(
         let dir = (s[1].diff - s[0].diff)
             .cross(&-s[0].diff)
             .cross(&(s[1].diff - s[0].diff));
-        return (s, dir, false);
+        return (dir, false);
     }
 
     // yd-re merőleges, kifelé mutat
@@ -182,61 +222,15 @@ fn tetrahedron_triangle_subcheck(
         let dir = (s[1].diff - s[0].diff)
             .cross(&-s[0].diff)
             .cross(&(s[1].diff - s[0].diff));
-        return (s, dir, false);
+        return (dir, false);
     }
-    (s, xyd_perp, false)
-}
-
-fn gjk_closest_point(
-    a: &impl Support,
-    b: &impl Support,
-    mut s: SimplexData,
-) -> GJKResult {
-    let mut prev_dist = f64::INFINITY;
-    let mut closest_point;
-    (closest_point, s) = closest_simplex::<false>(s);
-    let mut dist_diff = 0.0;
-    for _ in 0..GJK_CLOSEST_POINT_MAX_ITER {
-        let dist = closest_point.diff.magnitude();
-        // debug_assert!(
-        //     dist <= prev_dist + TOLERANCE,
-        //     "prev_dist={prev_dist}, dist={dist}"
-        // );
-        if s.len() == SIMPLEX_MAX_DIM {
-            return epa(a, b, s.into_vec());
-        }
-        // debug_assert!(
-        //     dist > TOLERANCE,
-        //     "if dist={dist} is smaller than TOLERANCE={TOLERANCE} \
-        //      the simplex should have {SIMPLEX_MAX_DIM} points"
-        // );
-        dist_diff = prev_dist - dist;
-        if prev_dist - dist <= TOLERANCE {
-            return closest_point_to_contact(a, b, closest_point);
-        }
-        prev_dist = dist;
-        let new_point = SupportPoint::new(a, b, &-closest_point.diff);
-        if closest_point
-            .diff
-            .dot(&(new_point.diff - closest_point.diff))
-            >= -TOLERANCE
-        {
-            return closest_point_to_contact(a, b, closest_point);
-        }
-        s.push(new_point);
-        (closest_point, s) = closest_simplex::<false>(s);
-    }
-    eprintln!(
-        "gjk_closest_point didn't converge in {GJK_CLOSEST_POINT_MAX_ITER} \
-        steps (dist = {prev_dist:0.10}, diff = {dist_diff:0.10})"
-    );
-    closest_point_to_contact(a, b, closest_point)
+    (xyd_perp, false)
 }
 
 fn closest_point_to_contact(
     a: &impl Support,
     b: &impl Support,
-    closest_point: SupportPoint,
+    closest_point: &SupportPoint,
 ) -> GJKResult {
     if closest_point.diff.magnitude() <= a.radius() + b.radius() {
         let normal = closest_point.diff;
@@ -254,18 +248,16 @@ fn closest_point_to_contact(
     }
 }
 
-fn closest_simplex<const DETCHECK: bool>(
-    s: SimplexData,
-) -> (SupportPoint, SimplexData) {
-    let (s, _, _) = best_simplex(s);
+fn closest_simplex<const DETCHECK: bool>(s: &mut SimplexData) -> SupportPoint {
+    let (_, _) = best_simplex(s);
     match s.len() {
         0 => panic!("simplex has to contain at least 1 point"),
-        1 => (s[0].clone(), s),
+        1 => s[0].clone(),
         2 if !DETCHECK => {
             let t = (-s[1].diff.dot(&(s[0].diff - s[1].diff))
                 / (s[0].diff - s[1].diff).magnitude_squared())
             .clamp(0.0, 1.0);
-            (s[1].clone() + t * &(s[0].clone() - s[1].clone()), s)
+            s[1].clone() + t * &(s[0].clone() - s[1].clone())
         }
         2 => closest_simplex_static::<2, DETCHECK>(s),
         3 => closest_simplex_static::<3, DETCHECK>(s),
@@ -275,8 +267,8 @@ fn closest_simplex<const DETCHECK: bool>(
 }
 
 fn closest_simplex_static<const N: usize, const DETCHECK: bool>(
-    mut s: SimplexData,
-) -> (SupportPoint, SimplexData)
+    s: &mut SimplexData,
+) -> SupportPoint
 where
     Const<N>: DimMin<Const<N>, Output = Const<N>>,
 {
@@ -303,18 +295,15 @@ where
         b[i] = -s[0].diff.dot(&(s[i].diff - s[0].diff));
     }
     let multipliers = a_inverse * b;
-    (
-        multipliers
-            .iter()
-            .inspect(|m| {
-                assert!(m >= &&0.0, "invalid multiplier m={m}, should be >= 0");
-            })
-            .zip(&s)
-            .map(|(t, v)| *t * v)
-            .reduce(|a, b| a + b)
-            .unwrap(),
-        s,
-    )
+    multipliers
+        .iter()
+        .inspect(|m| {
+            assert!(m >= &&0.0, "invalid multiplier m={m}, should be >= 0");
+        })
+        .zip(&*s)
+        .map(|(t, v)| *t * v)
+        .reduce(|a, b| a + b)
+        .unwrap()
 }
 
 pub fn epa(
@@ -331,8 +320,7 @@ pub fn epa(
         tmp.push(points[*v1].clone());
         tmp.push(points[*v2].clone());
         tmp.push(points[*v3].clone());
-        let closest_point;
-        (closest_point, tmp) = closest_simplex::<true>(tmp);
+        let closest_point = closest_simplex::<true>(&mut tmp);
         tmp.clear();
         closest_points.push(closest_point);
     }
@@ -415,8 +403,7 @@ pub fn epa(
             tmp.push(points[*v1].clone());
             tmp.push(points[*v2].clone());
             tmp.push(points[*v3].clone());
-            let closest_point;
-            (closest_point, tmp) = closest_simplex::<true>(tmp);
+            let closest_point = closest_simplex::<true>(&mut tmp);
             tmp.clear();
             new_closest_points.push(closest_point);
         }
