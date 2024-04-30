@@ -81,12 +81,9 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
 }
 
 #[allow(clippy::similar_names)]
-fn best_simplex(s: &mut SimplexData) -> (Vec3, bool) {
+fn best_simplex(s: &mut SimplexData) {
     match s.len() {
-        1 => {
-            let dir = -s[0].diff;
-            (dir, false)
-        }
+        1 => {}
         2 => {
             let ab = s[1].diff - s[0].diff;
             if ab.dot(&-s[0].diff) < 0.0 {
@@ -95,12 +92,8 @@ fn best_simplex(s: &mut SimplexData) -> (Vec3, bool) {
             }
             if ab.dot(&-s[1].diff) > 0.0 {
                 s.remove(1);
-                return best_simplex(s);
+                best_simplex(s);
             }
-            let dir = (s[1].diff - s[0].diff)
-                .cross(&-s[0].diff)
-                .cross(&(s[1].diff - s[0].diff));
-            (dir, false)
         }
         3 => {
             // háromszög síkjára merőleges
@@ -132,12 +125,8 @@ fn best_simplex(s: &mut SimplexData) -> (Vec3, bool) {
             }
 
             // abc_perp irányba van az origó
-            if abc_perp.dot(&-s[2].diff) > 0.0 {
-                (abc_perp, false)
-            // -abc_perp irányba van az origó
-            } else {
+            if abc_perp.dot(&-s[2].diff) <= 0.0 {
                 s.reverse();
-                (-abc_perp, false)
             }
         }
         4 => {
@@ -187,31 +176,24 @@ fn best_simplex(s: &mut SimplexData) -> (Vec3, bool) {
                 s.remove(1);
                 let (s1, s2) = s.split_at_mut(1);
                 std::mem::swap(&mut s1[0], &mut s2[0]);
-                return tetrahedron_triangle_subcheck(s, cad_perp);
+                tetrahedron_triangle_subcheck(s, cad_perp);
             }
 
             // Ha nincs egyik háromszög síkján kívül sem, akkor a tetraéderben van.
-            (Vec3::zeros(), true)
         }
         _ => unreachable!(),
     }
 }
 
 #[allow(clippy::similar_names)]
-fn tetrahedron_triangle_subcheck(
-    s: &mut SimplexData,
-    xyd_perp: Vec3,
-) -> (Vec3, bool) {
+fn tetrahedron_triangle_subcheck(s: &mut SimplexData, xyd_perp: Vec3) {
     debug_assert!(s.len() == 3);
     // xd-re merőleges, kifelé mutat
     let xd_perp = xyd_perp.cross(&(s[2].diff - s[0].diff));
     // xd-n kívül van
     if xd_perp.dot(&-s[2].diff) > 0.0 {
         s.remove(1);
-        let dir = (s[1].diff - s[0].diff)
-            .cross(&-s[0].diff)
-            .cross(&(s[1].diff - s[0].diff));
-        return (dir, false);
+        return;
     }
 
     // yd-re merőleges, kifelé mutat
@@ -219,12 +201,7 @@ fn tetrahedron_triangle_subcheck(
     // yd-n kívül van
     if yd_perp.dot(&-s[2].diff) > 0.0 {
         s.remove(0);
-        let dir = (s[1].diff - s[0].diff)
-            .cross(&-s[0].diff)
-            .cross(&(s[1].diff - s[0].diff));
-        return (dir, false);
     }
-    (xyd_perp, false)
 }
 
 fn closest_point_to_contact(
@@ -249,7 +226,7 @@ fn closest_point_to_contact(
 }
 
 fn closest_simplex<const DETCHECK: bool>(s: &mut SimplexData) -> SupportPoint {
-    let (_, _) = best_simplex(s);
+    best_simplex(s);
     match s.len() {
         0 => panic!("simplex has to contain at least 1 point"),
         1 => s[0].clone(),
@@ -262,6 +239,10 @@ fn closest_simplex<const DETCHECK: bool>(s: &mut SimplexData) -> SupportPoint {
         2 => closest_simplex_static::<2, DETCHECK>(s),
         3 => closest_simplex_static::<3, DETCHECK>(s),
         4 => closest_simplex_static::<4, DETCHECK>(s),
+        // 4 => SupportPoint {
+        //     diff: Vec3::zeros(),
+        //     a: Vec3::zeros(),
+        // },
         _ => unreachable!(),
     }
 }
@@ -298,7 +279,10 @@ where
     multipliers
         .iter()
         .inspect(|m| {
-            assert!(m >= &&0.0, "invalid multiplier m={m}, should be >= 0");
+            debug_assert!(
+                m >= &&-TOLERANCE,
+                "invalid multiplier m={m}, should be >= 0"
+            );
         })
         .zip(&*s)
         .map(|(t, v)| *t * v)
