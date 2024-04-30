@@ -254,6 +254,47 @@ impl MainScene {
         });
     }
 
+    fn preres_carpet_bomb(&mut self) {
+        self.objects.clear();
+        for x in -50..=50 {
+            for z in -50..=50 {
+                self.objects.push(Object {
+                    position: Point3::new(
+                        f64::from(x) * 1.01,
+                        f64::from(0) * 1.01,
+                        f64::from(z) * 1.01,
+                    ),
+                    mesh_scale: Vector3::new(1.0, 1.0, 1.0),
+                    ..Object::new(
+                        &self.box_mesh,
+                        Collider::Box(1.0, 1.0, 1.0),
+                        // Collider::Sphere(0.5),
+                        1.0,
+                    )
+                });
+            }
+        }
+        for x in -3..=3 {
+            for z in -3..=3 {
+                self.objects.push(Object {
+                    position: Point3::new(
+                        f64::from(x) * 15.0,
+                        f64::from((x + 5) * 7 + z + 5) * 15.0,
+                        f64::from(z) * 15.0,
+                    ),
+                    momentum: Vector3::new(0.0, -800.0, 0.0),
+                    mesh_scale: Vector3::new(4.0, 4.0, 4.0),
+                    ..Object::new(
+                        &self.box_mesh,
+                        Collider::Box(4.0, 4.0, 4.0),
+                        // Collider::Sphere(0.5),
+                        20.0,
+                    )
+                });
+            }
+        }
+    }
+
     fn preset_spinning_ball(&mut self) {
         self.objects.clear();
         for x in -5..=5 {
@@ -470,6 +511,9 @@ impl MainScene {
         }
         if ui.button("Rotating board").clicked() {
             self.preset_rotating_board();
+        }
+        if ui.button("Carpet bomb").clicked() {
+            self.preres_carpet_bomb();
         }
         ui.checkbox(&mut self.depth_pass, "Depth pass");
         ui.checkbox(&mut self.draw_phong, "Draw objects");
