@@ -456,3 +456,217 @@ fn minmax<T: Ord>(a: T, b: T) -> (T, T) {
         (b, a)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_support_point(x: f64, y: f64, z: f64) -> SupportPoint {
+        SupportPoint {
+            diff: Vec3::new(x, y, z),
+            a: Vec3::default(),
+        }
+    }
+
+    #[test]
+    fn one_simplex_best_simplex_is_self() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(1.0, 1.0, 1.0));
+        let expected = s.clone();
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn two_simplex_with_first_point_closest_best_simplex_is_first_point() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(1.0, 1.0, 1.0));
+        let expected = s.clone();
+        s.push(test_support_point(2.0, 2.0, 2.0));
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn two_simplex_with_second_point_closest_best_simplex_is_second_point() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(1.0, 1.0, 1.0));
+        let expected = s.clone();
+        s.insert(0, test_support_point(2.0, 2.0, 2.0));
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn two_simplex_with_neither_point_closest_best_simplex_is_self() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(1.0, 1.0, 1.0));
+        s.insert(0, test_support_point(-1.0, -1.0, -1.0));
+        let expected = s.clone();
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn three_simplex_with_first_point_closest_best_simplex_is_first_point() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(1.0, 1.0, 1.0));
+        let expected = s.clone();
+        s.push(test_support_point(1.0, 3.0, 0.0));
+        s.push(test_support_point(1.0, 0.0, 3.0));
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn three_simplex_with_second_point_closest_best_simplex_is_second_point() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(1.0, 1.0, 1.0));
+        let expected = s.clone();
+        s.insert(0, test_support_point(1.0, 3.0, 0.0));
+        s.push(test_support_point(1.0, 0.0, 3.0));
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn three_simplex_with_third_point_closest_best_simplex_is_third_point() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(1.0, 1.0, 1.0));
+        let expected = s.clone();
+        s.insert(0, test_support_point(1.0, 3.0, 0.0));
+        s.insert(0, test_support_point(1.0, 0.0, 3.0));
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn three_simplex_with_first_and_second_point_closest_best_simplex_is_first_and_second_point(
+    ) {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(1.0, 0.5, 1.0));
+        s.push(test_support_point(1.0, 3.0, -2.0));
+        let expected = s.clone();
+        s.push(test_support_point(1.0, 0.5, 3.0));
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn three_simplex_with_second_and_third_point_closest_best_simplex_is_second_and_third_point(
+    ) {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(1.0, 0.5, 1.0));
+        s.push(test_support_point(1.0, 3.0, -2.0));
+        let expected = s.clone();
+        s.insert(0, test_support_point(1.0, 0.5, 3.0));
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn three_simplex_with_third_and_first_point_closest_best_simplex_is_third_and_first_point(
+    ) {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(1.0, 0.5, 1.0));
+        s.insert(0, test_support_point(1.0, 3.0, -2.0));
+        let expected = s.clone();
+        s.insert(0, test_support_point(1.0, 0.5, 3.0));
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn three_simplex_with_origin_above_best_simplex_is_self() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(-1.0, -1.0, 1.0));
+        s.push(test_support_point(1.0, -1.0, 1.0));
+        s.push(test_support_point(-0.5, -1.0, -1.0));
+        let expected = s.clone();
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn three_simplex_with_origin_below_best_simplex_is_self_reversed() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(-1.0, 1.0, 1.0));
+        s.push(test_support_point(1.0, 1.0, 1.0));
+        s.push(test_support_point(-0.5, 1.0, -1.0));
+        let mut expected = s.clone();
+        expected.reverse();
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn four_simplex_origin_above_three_sides_cad() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(-1.0, -1.0, 1.0));
+        s.push(test_support_point(1.0, -1.0, 1.0));
+        s.push(test_support_point(-0.5, -1.0, -1.0));
+        s.push(test_support_point(0.36704, -0.78627, 0.30012));
+        let mut expected = SimplexData::new();
+        expected.push(s[2]);
+        expected.push(s[0]);
+        expected.push(s[3]);
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn four_simplex_origin_above_three_sides_cd() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(-1.0, -1.0, 1.0));
+        s.push(test_support_point(1.0, -1.0, 1.0));
+        s.push(test_support_point(-0.5, -1.0, -1.0));
+        s.push(test_support_point(0.28652, -0.78627, 0.33763));
+        let mut expected = SimplexData::new();
+        expected.push(s[2]);
+        expected.push(s[3]);
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn four_simplex_origin_above_three_sides_db() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(-1.0, -1.0, 1.0));
+        s.push(test_support_point(1.0, -1.0, 1.0));
+        s.push(test_support_point(-0.5, -1.0, -1.0));
+        s.push(test_support_point(-0.25293, -0.78627, -0.20727));
+        let mut expected = SimplexData::new();
+        expected.push(s[3]);
+        expected.push(s[1]);
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn four_simplex_origin_above_three_sides_abd() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(-1.0, -1.0, 1.0));
+        s.push(test_support_point(1.0, -1.0, 1.0));
+        s.push(test_support_point(-0.5, -1.0, -1.0));
+        s.push(test_support_point(-0.26920, -0.53813, -0.78627));
+        let mut expected = SimplexData::new();
+        expected.push(s[0]);
+        expected.push(s[1]);
+        expected.push(s[3]);
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn four_simplex_origin_above_three_sides_d() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(-1.0, -1.0, 1.0));
+        s.push(test_support_point(1.0, -1.0, 1.0));
+        s.push(test_support_point(-0.5, -1.0, -1.0));
+        s.push(test_support_point(-0.057_238, -0.7, 1.135));
+        let mut expected = SimplexData::new();
+        expected.push(s[3]);
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+}
