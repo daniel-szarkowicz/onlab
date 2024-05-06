@@ -628,7 +628,8 @@ impl Scene for MainScene {
         }
         unsafe {
             ctx.gl.enable(glow::CULL_FACE);
-            ctx.gl.clear_color(0.69, 0.0, 1.0, 1.0);
+            // ctx.gl.clear_color(0.69, 0.0, 1.0, 1.0);
+            ctx.gl.clear_color(0.53, 0.81, 0.92, 1.0);
             ctx.gl
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             ctx.gl.enable(glow::DEPTH_TEST);
