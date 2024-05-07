@@ -45,10 +45,12 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
     let mut dist_diff = 0.0;
     for _ in 0..GJK_MAX_ITER {
         let dist = closest_point.diff.magnitude();
-        // debug_assert!(
-        //     dist <= prev_dist + TOLERANCE,
-        //     "prev_dist={prev_dist}, dist={dist}"
-        // );
+        // dbg!(&s);
+        // dbg!(closest_point.diff);
+        debug_assert!(
+            dist <= prev_dist + TOLERANCE,
+            "prev_dist={prev_dist}, dist={dist}"
+        );
         if s.len() == SIMPLEX_MAX_DIM {
             return epa(a, b, s.into_vec());
         }
@@ -71,7 +73,10 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
             return closest_point_to_contact(a, b, &closest_point);
         }
         s.push(new_point);
+        // eprintln!("before: {}", s.len());
         closest_point = closest_simplex::<false>(&mut s);
+        // eprintln!("after: {}", s.len());
+        // dbg!(&s);
     }
     eprintln!(
         "gjk didn't converge in {GJK_MAX_ITER} steps \
@@ -81,18 +86,21 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
 }
 
 #[allow(clippy::similar_names)]
+#[allow(clippy::too_many_lines)]
 fn best_simplex(s: &mut SimplexData) {
+    // dbg!(&s);
     match s.len() {
         1 => {}
         2 => {
             let ab = s[1].diff - s[0].diff;
             if ab.dot(&-s[0].diff) < 0.0 {
-                s.remove(0);
-                return best_simplex(s);
+                s.remove(1);
+                // return best_simplex(s);
+                return;
             }
             if ab.dot(&-s[1].diff) > 0.0 {
-                s.remove(1);
-                best_simplex(s);
+                s.remove(0);
+                // best_simplex(s);
             }
         }
         3 => {
@@ -102,91 +110,201 @@ fn best_simplex(s: &mut SimplexData) {
 
             // háromszögből kifele mutat, ac-re merőleges
             let ac_perp = abc_perp.cross(&(s[2].diff - s[0].diff));
+            // debug_assert!(ac_perp.dot(&(s[1].diff - s[0].diff)) < 0.0);
             // ha az origó egy irányba van az oldal normáljával
-            if ac_perp.dot(&-s[2].diff) > 0.0 {
-                // b-t kivesszük, mert nem kell
-                s.remove(1);
-                return best_simplex(s);
-            }
-
+            let ac = ac_perp.dot(&-s[2].diff) > 0.0;
             // háromszögből kifele mutat, bc-re merőleges
             let bc_perp = (s[2].diff - s[1].diff).cross(&abc_perp);
+            // debug_assert!(bc_perp.dot(&(s[0].diff - s[1].diff)) < 0.0);
             // ha az origó egy irányba van az oldal normáljával
-            if bc_perp.dot(&-s[2].diff) > 0.0 {
-                // a-t kivesszük, mert nem kell
-                s.remove(0);
-                return best_simplex(s);
+            let bc = bc_perp.dot(&-s[2].diff) > 0.0;
+            let ab_perp = (s[1].diff - s[0].diff).cross(&abc_perp);
+            // debug_assert!(ab_perp.dot(&(s[2].diff - s[0].diff)) < 0.0);
+            let ab = ab_perp.dot(&-s[1].diff) > 0.0;
+
+            match (ab, bc, ac) {
+                (true, true, true) => unreachable!(
+                    "point cannot be on all three sides of a triangle"
+                ),
+                (true, true, false) => {
+                    triangle_two_sides_subcheck(s, ab_perp, bc_perp);
+                }
+                (false, true, true) => {
+                    s.rotate_left(1);
+                    triangle_two_sides_subcheck(s, bc_perp, ac_perp);
+                }
+                (true, false, true) => {
+                    s.rotate_left(2);
+                    triangle_two_sides_subcheck(s, ac_perp, ab_perp);
+                }
+                (true, false, false) => {
+                    s.remove(2);
+                    best_simplex(s);
+                }
+                (false, true, false) => {
+                    s.remove(0);
+                    best_simplex(s);
+                }
+                (false, false, true) => {
+                    s.remove(1);
+                    best_simplex(s);
+                }
+                (false, false, false) => {
+                    if abc_perp.dot(&-s[2].diff) <= 0.0 {
+                        s.reverse();
+                    }
+                }
             }
 
-            let ab_perp = (s[1].diff - s[0].diff).cross(&abc_perp);
-            if ab_perp.dot(&-s[1].diff) > 0.0 {
-                s.remove(2);
-                return best_simplex(s);
-            }
+            // if ac {
+            //     // b-t kivesszük, mert nem kell
+            //     s.remove(1);
+            //     return best_simplex(s);
+            // }
+
+            // if bc {
+            //     // a-t kivesszük, mert nem kell
+            //     s.remove(0);
+            //     return best_simplex(s);
+            // }
+
+            // if ab {
+            //     s.remove(2);
+            //     return best_simplex(s);
+            // }
 
             // abc_perp irányba van az origó
-            if abc_perp.dot(&-s[2].diff) <= 0.0 {
-                s.reverse();
-            }
         }
         4 => {
-            // Az origó nem lehet az abc háromszög "alatt" és a d pont "fölött".
-            // Az abc háromszögre vetítve az origó nem lehet a háromszögön kívül.
-            // Tehát az origó az abc alapú hasábban van.
-
-            // Az origó lehet az abd háromszög síkján kívül.
-            //   Ha ott van, akkor lehet ad vagy a bd oldalon kívül
-            //   vagy az abd háromszög "fölött".
             let abd_perp =
                 (s[1].diff - s[0].diff).cross(&(s[3].diff - s[0].diff));
-            // Ha abd síkján kívül van
+            let bcd_perp =
+                (s[2].diff - s[1].diff).cross(&(s[3].diff - s[1].diff));
+            let cad_perp =
+                (s[0].diff - s[2].diff).cross(&(s[3].diff - s[2].diff));
             debug_assert!(
                 abd_perp.dot(&(s[2].diff - s[3].diff)) < 0.0,
                 "abd={abd_perp:?}"
             );
-            if abd_perp.dot(&-s[3].diff) > 0.0 {
-                s.remove(2);
-                return tetrahedron_triangle_subcheck(s, abd_perp);
-            }
-
-            // Az origó lehet a bcd háromszög síkján kívül.
-            //   Ha ott van, akkor lehet bd vagy a cd oldalon kívül
-            //   vagy a bcd háromszög "fölött".
-            let bcd_perp =
-                (s[2].diff - s[1].diff).cross(&(s[3].diff - s[1].diff));
             debug_assert!(
                 bcd_perp.dot(&(s[0].diff - s[3].diff)) < 0.0,
                 "bcd={bcd_perp:?}"
             );
-            if bcd_perp.dot(&-s[3].diff) > 0.0 {
-                s.remove(0);
-                return tetrahedron_triangle_subcheck(s, bcd_perp);
-            }
-
-            // Az origó lehet a cad háromszög síkján kívül.
-            //   Ha ott van, akkor lehet cd vagy a ad oldalon kívül
-            //   vagy a bcd háromszög "fölött".
-            let cad_perp =
-                (s[0].diff - s[2].diff).cross(&(s[3].diff - s[2].diff));
             debug_assert!(
                 cad_perp.dot(&(s[1].diff - s[3].diff)) < 0.0,
                 "cad={cad_perp:?}"
             );
-            if cad_perp.dot(&-s[3].diff) > 0.0 {
-                s.remove(1);
-                let (s1, s2) = s.split_at_mut(1);
-                std::mem::swap(&mut s1[0], &mut s2[0]);
-                tetrahedron_triangle_subcheck(s, cad_perp);
-            }
+            let abd = abd_perp.dot(&-s[3].diff) > 0.0;
+            let bcd = bcd_perp.dot(&-s[3].diff) > 0.0;
+            let cad = cad_perp.dot(&-s[3].diff) > 0.0;
 
-            // Ha nincs egyik háromszög síkján kívül sem, akkor a tetraéderben van.
+            match dbg!((abd, bcd, cad)) {
+                (true, true, true) => {
+                    // tetrahedron_two_sides_subcheck(s, abd_perp, bcd_perp);
+                    let ad_perp = abd_perp.cross(&(s[3].diff - s[0].diff));
+                    eprintln!("three sides");
+                    // dbg!(&s);
+                    if ad_perp.dot(&-s[3].diff) < 0.0 {
+                        eprintln!("first case");
+                        tetrahedron_two_sides_subcheck(s, abd_perp, bcd_perp);
+                    } else {
+                        eprintln!("second case");
+                        dbg!("before", &s);
+                        s[0..3].rotate_left(1);
+                        tetrahedron_two_sides_subcheck(s, bcd_perp, cad_perp);
+                        dbg!("after", &s);
+                    }
+                    // dbg!(&s);
+                }
+                (true, true, false) => {
+                    tetrahedron_two_sides_subcheck(s, abd_perp, bcd_perp);
+                }
+                (false, true, true) => {
+                    s[0..3].rotate_left(1);
+                    tetrahedron_two_sides_subcheck(s, bcd_perp, cad_perp);
+                }
+                (true, false, true) => {
+                    s[0..3].rotate_left(2);
+                    tetrahedron_two_sides_subcheck(s, cad_perp, abd_perp);
+                }
+                (true, false, false) => {
+                    s.remove(2);
+                    tetrahedron_triangle_subcheck(s, abd_perp);
+                }
+                (false, true, false) => {
+                    s[0..3].rotate_left(1);
+                    s.remove(2);
+                    tetrahedron_triangle_subcheck(s, bcd_perp);
+                }
+                (false, false, true) => {
+                    s[0..3].rotate_left(2);
+                    s.remove(2);
+                    // let (s1, s2) = s.split_at_mut(1);
+                    // std::mem::swap(&mut s1[0], &mut s2[0]);
+                    tetrahedron_triangle_subcheck(s, cad_perp);
+                }
+                (false, false, false) => {}
+            }
         }
         _ => unreachable!(),
     }
 }
 
+// the edges with index 0, 1 and 1, 2 both have the origin above them
+// the shared vertex is 1
+fn triangle_two_sides_subcheck(s: &mut SimplexData, perp1: Vec3, perp2: Vec3) {
+    let edgevec1 = s[1].diff - s[0].diff;
+    if edgevec1.dot(&-s[1].diff) > 0.0 {
+        s.remove(0);
+        return best_simplex(s);
+    }
+    // let edgevec2 = s[1].diff - s[2].diff;
+    // if edgevec2.dot(&-s[1].diff) > 0.0 {
+    //     s.remove(2);
+    //     return best_simplex(s);
+    // }
+    s.remove(2);
+    // s.remove(0);
+    best_simplex(s);
+}
+
+// the faces with index 0, 1, 3 and 1, 2, 3 both have the origin above them
+// the shared edge is 1, 3
+fn tetrahedron_two_sides_subcheck(
+    s: &mut SimplexData,
+    perp1: Vec3,
+    perp2: Vec3,
+) {
+    eprintln!("two sides");
+    let out1 = (s[3].diff - s[1].diff).cross(&perp1);
+    // let out2 = perp2.cross(&(s[3].diff - s[0].diff));
+    if out1.dot(&-s[3].diff) < 0.0 {
+        // it is inside the first face
+        println!("two sides first case");
+        s.remove(2);
+        // return tetrahedron_triangle_subcheck(s, perp1);
+        return best_simplex(s);
+    }
+    println!("two sides second case");
+    // if out2.dot(&-s[3].diff) < 0.0 {
+    //     // it is inside the second face
+    //     s.remove(0);
+    //     return tetrahedron_triangle_subcheck(s, perp2);
+    // }
+    // // it is on the edge
+    // s.remove(2);
+    s.remove(0);
+    best_simplex(s);
+}
+
+// all three faces have the origin above them
+fn tetrahedron_three_sides_subcheck(s: &mut SimplexData) {
+    todo!()
+}
+
 #[allow(clippy::similar_names)]
 fn tetrahedron_triangle_subcheck(s: &mut SimplexData, xyd_perp: Vec3) {
+    // eprintln!("one side");
     debug_assert!(s.len() == 3);
     // xd-re merőleges, kifelé mutat
     let xd_perp = xyd_perp.cross(&(s[2].diff - s[0].diff));
@@ -663,8 +781,38 @@ mod tests {
         s.push(test_support_point(-1.0, -1.0, 1.0));
         s.push(test_support_point(1.0, -1.0, 1.0));
         s.push(test_support_point(-0.5, -1.0, -1.0));
-        s.push(test_support_point(-0.057_238, -0.7, 1.135));
+        s.push(test_support_point(-0.057_238, -0.7, 0.135));
         let mut expected = SimplexData::new();
+        expected.push(s[3]);
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn four_simplex_origin_above_two_sides_real_case_1() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(
+            0.157_176_221_303_004_35,
+            -0.104_398_055_011_310_83,
+            0.188_657_460_838_071_78,
+        ));
+        s.push(test_support_point(
+            -1.947_285_518_635_449,
+            -0.474_528_788_704_881_24,
+            -0.411_726_347_281_799_6,
+        ));
+        s.push(test_support_point(
+            -1.768_492_127_755_563_2,
+            0.395_545_328_272_716_8,
+            0.047_625_320_118_380_72,
+        ));
+        s.push(test_support_point(
+            -0.795_245_122_271_985_1,
+            0.165_784_004_328_146_22,
+            0.047_606_976_564_171_79,
+        ));
+        let mut expected = SimplexData::new();
+        expected.push(s[0]);
         expected.push(s[3]);
         best_simplex(&mut s);
         assert_eq!(expected, s);
