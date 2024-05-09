@@ -198,21 +198,22 @@ fn best_simplex(s: &mut SimplexData) {
             let bcd = bcd_perp.dot(&-s[3].diff) > 0.0;
             let cad = cad_perp.dot(&-s[3].diff) > 0.0;
 
-            match dbg!((abd, bcd, cad)) {
+            // dbg!(abd, bcd, cad);
+            match (abd, bcd, cad) {
                 (true, true, true) => {
                     // tetrahedron_two_sides_subcheck(s, abd_perp, bcd_perp);
                     let ad_perp = abd_perp.cross(&(s[3].diff - s[0].diff));
-                    eprintln!("three sides");
+                    // eprintln!("three sides");
                     // dbg!(&s);
                     if ad_perp.dot(&-s[3].diff) < 0.0 {
-                        eprintln!("first case");
+                        // eprintln!("first case");
                         tetrahedron_two_sides_subcheck(s, abd_perp, bcd_perp);
                     } else {
-                        eprintln!("second case");
-                        dbg!("before", &s);
+                        // eprintln!("second case");
+                        // dbg!("before", &s);
                         s[0..3].rotate_left(1);
                         tetrahedron_two_sides_subcheck(s, bcd_perp, cad_perp);
-                        dbg!("after", &s);
+                        // dbg!("after", &s);
                     }
                     // dbg!(&s);
                 }
@@ -276,25 +277,78 @@ fn tetrahedron_two_sides_subcheck(
     perp2: Vec3,
 ) {
     eprintln!("two sides");
-    let out1 = (s[3].diff - s[1].diff).cross(&perp1);
-    // let out2 = perp2.cross(&(s[3].diff - s[0].diff));
-    if out1.dot(&-s[3].diff) < 0.0 {
+    let out1_1 = (s[3].diff - s[1].diff).cross(&perp1);
+    let out1_2 = perp1.cross(&(s[3].diff - s[0].diff));
+    debug_assert!(out1_1.dot(&(s[3].diff - s[0].diff)) > 0.0);
+    debug_assert!(out1_2.dot(&(s[3].diff - s[1].diff)) > 0.0);
+
+    let out2_1 = perp2.cross(&(s[3].diff - s[1].diff));
+    let out2_2 = (s[3].diff - s[2].diff).cross(&perp2);
+    debug_assert!(out2_1.dot(&(s[3].diff - s[2].diff)) > 0.0);
+    debug_assert!(out2_2.dot(&(s[3].diff - s[1].diff)) > 0.0);
+
+    let c1_1 = out1_1.dot(&-s[3].diff) < 0.0;
+    let c1_2 = out1_2.dot(&-s[3].diff) < 0.0;
+    let c2_1 = out2_1.dot(&-s[3].diff) < 0.0;
+    let c2_2 = out2_2.dot(&-s[3].diff) < 0.0;
+
+    eprintln!("c1_1 = {c1_1}, c1_2 = {c1_2}, c2_1 = {c2_1}, c2_2 = {c2_2}");
+
+    // dbg!(&s);
+    if c1_1 && c1_2 {
         // it is inside the first face
-        println!("two sides first case");
         s.remove(2);
         // return tetrahedron_triangle_subcheck(s, perp1);
         return best_simplex(s);
     }
-    println!("two sides second case");
-    // if out2.dot(&-s[3].diff) < 0.0 {
-    //     // it is inside the second face
-    //     s.remove(0);
-    //     return tetrahedron_triangle_subcheck(s, perp2);
-    // }
+
+    if c2_1 && c2_2 {
+        // it is inside the second face
+        s.remove(0);
+        return best_simplex(s);
+    }
+
+    // it is on one of the edges
+    let e1_1 = -s[0].diff.dot(&(s[0].diff - s[3].diff)) < 0.0;
+    let e1_2 = -s[3].diff.dot(&(s[3].diff - s[0].diff)) < 0.0;
+
+    let e2_1 = -s[1].diff.dot(&(s[1].diff - s[3].diff)) < 0.0;
+    let e2_2 = -s[3].diff.dot(&(s[3].diff - s[1].diff)) < 0.0;
+
+    let e3_1 = -s[2].diff.dot(&(s[2].diff - s[3].diff)) < 0.0;
+    let e3_2 = -s[3].diff.dot(&(s[3].diff - s[2].diff)) < 0.0;
+
+    eprintln!("e1_1 = {e1_1}, e1_2 = {e1_2}, e2_1 = {e2_1}, e2_2 = {e2_2}, e3_1 = {e3_1}, e3_2 = {e3_2}");
+    dbg!(&s);
+
+    if e1_1 && e1_2 {
+        s.remove(2);
+        s.remove(1);
+        return;
+    }
+
+    if e2_1 && e2_2 {
+        s.remove(2);
+        s.remove(0);
+        return;
+    }
+
+    if e3_1 && e3_2 {
+        s.remove(1);
+        s.remove(0);
+        return;
+    }
+
+    // it is not on the edges, it must be the new point
+    s.remove(2);
+    s.remove(1);
+    s.remove(0);
+
     // // it is on the edge
     // s.remove(2);
-    s.remove(0);
-    best_simplex(s);
+    // s.remove(0);
+    // best_simplex(s);
+    // todo!();
 }
 
 // all three faces have the origin above them
@@ -754,8 +808,8 @@ mod tests {
         s.push(test_support_point(-0.5, -1.0, -1.0));
         s.push(test_support_point(-0.25293, -0.78627, -0.20727));
         let mut expected = SimplexData::new();
-        expected.push(s[3]);
         expected.push(s[1]);
+        expected.push(s[3]);
         best_simplex(&mut s);
         assert_eq!(expected, s);
     }
@@ -813,6 +867,36 @@ mod tests {
         ));
         let mut expected = SimplexData::new();
         expected.push(s[0]);
+        expected.push(s[3]);
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn four_simplex_origin_above_two_sides_real_case_2() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(
+            -0.162_395_302_346_486_58,
+            0.076_310_061_404_575_97,
+            1.912_859_484_357_846_6,
+        ));
+        s.push(test_support_point(
+            0.143_441_832_782_921,
+            -0.092_231_565_004_763_37,
+            -0.024_187_668_640_940_02,
+        ));
+        s.push(test_support_point(
+            -0.807_911_975_194_552_9,
+            -1.107_795_784_723_161_6,
+            -0.331_894_813_685_246_2,
+        ));
+        s.push(test_support_point(
+            -2.113_749_110_323_96,
+            0.060_745_841_686_177_69,
+            0.605_152_339_313_540_4,
+        ));
+        let mut expected = SimplexData::new();
+        expected.push(s[1]);
         expected.push(s[3]);
         best_simplex(&mut s);
         assert_eq!(expected, s);
