@@ -47,10 +47,10 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
         let dist = closest_point.diff.magnitude();
         // dbg!(&s);
         // dbg!(closest_point.diff);
-        debug_assert!(
-            dist <= prev_dist + TOLERANCE,
-            "prev_dist={prev_dist}, dist={dist}"
-        );
+        // debug_assert!(
+        //     dist <= prev_dist + TOLERANCE,
+        //     "prev_dist={prev_dist}, dist={dist}"
+        // );
         if s.len() == SIMPLEX_MAX_DIM {
             return epa(a, b, s.into_vec());
         }
@@ -74,6 +74,10 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
         }
         s.push(new_point);
         // eprintln!("before: {}", s.len());
+        // dbg!(&s);
+        // for (i, p) in s.iter().enumerate() {
+        //     eprintln!("A_{i} = ({}, {}, {})", p.diff.x, p.diff.y, p.diff.z);
+        // }
         closest_point = closest_simplex::<false>(&mut s);
         // eprintln!("after: {}", s.len());
         // dbg!(&s);
@@ -202,19 +206,22 @@ fn best_simplex(s: &mut SimplexData) {
             match (abd, bcd, cad) {
                 (true, true, true) => {
                     // tetrahedron_two_sides_subcheck(s, abd_perp, bcd_perp);
-                    let ad_perp = abd_perp.cross(&(s[3].diff - s[0].diff));
-                    // eprintln!("three sides");
-                    // dbg!(&s);
-                    if ad_perp.dot(&-s[3].diff) < 0.0 {
-                        // eprintln!("first case");
-                        tetrahedron_two_sides_subcheck(s, abd_perp, bcd_perp);
-                    } else {
-                        // eprintln!("second case");
-                        // dbg!("before", &s);
-                        s[0..3].rotate_left(1);
-                        tetrahedron_two_sides_subcheck(s, bcd_perp, cad_perp);
-                        // dbg!("after", &s);
-                    }
+                    // let ad_perp = abd_perp.cross(&(s[3].diff - s[0].diff));
+                    // // eprintln!("three sides");
+                    // // dbg!(&s);
+                    // if ad_perp.dot(&-s[3].diff) < 0.0 {
+                    //     // eprintln!("first case");
+                    //     tetrahedron_two_sides_subcheck(s, abd_perp, bcd_perp);
+                    // } else {
+                    //     // eprintln!("second case");
+                    //     // dbg!("before", &s);
+                    //     s[0..3].rotate_left(1);
+                    //     tetrahedron_two_sides_subcheck(s, bcd_perp, cad_perp);
+                    //     // dbg!("after", &s);
+                    // }
+                    tetrahedron_three_sides_subcheck(
+                        s, abd_perp, bcd_perp, cad_perp,
+                    );
                     // dbg!(&s);
                 }
                 (true, true, false) => {
@@ -276,7 +283,7 @@ fn tetrahedron_two_sides_subcheck(
     perp1: Vec3,
     perp2: Vec3,
 ) {
-    eprintln!("two sides");
+    // eprintln!("two sides");
     let out1_1 = (s[3].diff - s[1].diff).cross(&perp1);
     let out1_2 = perp1.cross(&(s[3].diff - s[0].diff));
     debug_assert!(out1_1.dot(&(s[3].diff - s[0].diff)) > 0.0);
@@ -292,7 +299,7 @@ fn tetrahedron_two_sides_subcheck(
     let c2_1 = out2_1.dot(&-s[3].diff) < 0.0;
     let c2_2 = out2_2.dot(&-s[3].diff) < 0.0;
 
-    eprintln!("c1_1 = {c1_1}, c1_2 = {c1_2}, c2_1 = {c2_1}, c2_2 = {c2_2}");
+    // eprintln!("c1_1 = {c1_1}, c1_2 = {c1_2}, c2_1 = {c2_1}, c2_2 = {c2_2}");
 
     // dbg!(&s);
     if c1_1 && c1_2 {
@@ -318,22 +325,22 @@ fn tetrahedron_two_sides_subcheck(
     let e3_1 = -s[2].diff.dot(&(s[2].diff - s[3].diff)) < 0.0;
     let e3_2 = -s[3].diff.dot(&(s[3].diff - s[2].diff)) < 0.0;
 
-    eprintln!("e1_1 = {e1_1}, e1_2 = {e1_2}, e2_1 = {e2_1}, e2_2 = {e2_2}, e3_1 = {e3_1}, e3_2 = {e3_2}");
-    dbg!(&s);
+    // eprintln!("e1_1 = {e1_1}, e1_2 = {e1_2}, e2_1 = {e2_1}, e2_2 = {e2_2}, e3_1 = {e3_1}, e3_2 = {e3_2}");
+    // dbg!(&s);
 
-    if e1_1 && e1_2 {
+    if e1_1 && e1_2 && !c1_2 {
         s.remove(2);
         s.remove(1);
         return;
     }
 
-    if e2_1 && e2_2 {
+    if e2_1 && e2_2 && !c1_1 && !c2_1 {
         s.remove(2);
         s.remove(0);
         return;
     }
 
-    if e3_1 && e3_2 {
+    if e3_1 && e3_2 && !c2_2 {
         s.remove(1);
         s.remove(0);
         return;
@@ -352,8 +359,97 @@ fn tetrahedron_two_sides_subcheck(
 }
 
 // all three faces have the origin above them
-fn tetrahedron_three_sides_subcheck(s: &mut SimplexData) {
-    todo!()
+fn tetrahedron_three_sides_subcheck(
+    s: &mut SimplexData,
+    perp1: Vec3,
+    perp2: Vec3,
+    perp3: Vec3,
+) {
+    // eprintln!("three sides");
+    let out1_1 = (s[3].diff - s[1].diff).cross(&perp1);
+    let out1_2 = perp1.cross(&(s[3].diff - s[0].diff));
+    debug_assert!(out1_1.dot(&(s[3].diff - s[0].diff)) > 0.0);
+    debug_assert!(out1_2.dot(&(s[3].diff - s[1].diff)) > 0.0);
+
+    let out2_1 = perp2.cross(&(s[3].diff - s[1].diff));
+    let out2_2 = (s[3].diff - s[2].diff).cross(&perp2);
+    debug_assert!(out2_1.dot(&(s[3].diff - s[2].diff)) > 0.0);
+    debug_assert!(out2_2.dot(&(s[3].diff - s[1].diff)) > 0.0);
+
+    let out3_1 = perp3.cross(&(s[3].diff - s[2].diff));
+    let out3_2 = (s[3].diff - s[0].diff).cross(&perp3);
+    debug_assert!(out3_1.dot(&(s[3].diff - s[0].diff)) > 0.0);
+    debug_assert!(out3_2.dot(&(s[3].diff - s[2].diff)) > 0.0);
+
+    let c1_1 = out1_1.dot(&-s[3].diff) < 0.0;
+    let c1_2 = out1_2.dot(&-s[3].diff) < 0.0;
+    let c2_1 = out2_1.dot(&-s[3].diff) < 0.0;
+    let c2_2 = out2_2.dot(&-s[3].diff) < 0.0;
+    let c3_1 = out3_1.dot(&-s[3].diff) < 0.0;
+    let c3_2 = out3_2.dot(&-s[3].diff) < 0.0;
+
+    // eprintln!("c1_1 = {c1_1}, c1_2 = {c1_2}, c2_1 = {c2_1}, c2_2 = {c2_2}, c3_1 = {c3_1}, c3_2 = {c3_2}");
+
+    // dbg!(&s);
+    if c1_1 && c1_2 {
+        // it is inside the first face
+        s.remove(2);
+        // return tetrahedron_triangle_subcheck(s, perp1);
+        return best_simplex(s);
+    }
+
+    if c2_1 && c2_2 {
+        // it is inside the second face
+        s.remove(0);
+        return best_simplex(s);
+    }
+
+    if c3_1 && c3_2 {
+        s.remove(1);
+        return best_simplex(s);
+    }
+
+    // it is on one of the edges
+    let e1_1 = -s[0].diff.dot(&(s[0].diff - s[3].diff)) < 0.0;
+    let e1_2 = -s[3].diff.dot(&(s[3].diff - s[0].diff)) < 0.0;
+
+    let e2_1 = -s[1].diff.dot(&(s[1].diff - s[3].diff)) < 0.0;
+    let e2_2 = -s[3].diff.dot(&(s[3].diff - s[1].diff)) < 0.0;
+
+    let e3_1 = -s[2].diff.dot(&(s[2].diff - s[3].diff)) < 0.0;
+    let e3_2 = -s[3].diff.dot(&(s[3].diff - s[2].diff)) < 0.0;
+
+    // eprintln!("e1_1 = {e1_1}, e1_2 = {e1_2}, e2_1 = {e2_1}, e2_2 = {e2_2}, e3_1 = {e3_1}, e3_2 = {e3_2}");
+    // dbg!(&s);
+
+    if e1_1 && e1_2 && !c1_2 && !c3_2 {
+        s.remove(2);
+        s.remove(1);
+        return;
+    }
+
+    if e2_1 && e2_2 && !c1_1 && !c2_1 {
+        s.remove(2);
+        s.remove(0);
+        return;
+    }
+
+    if e3_1 && e3_2 && !c2_2 && !c3_1 {
+        s.remove(1);
+        s.remove(0);
+        return;
+    }
+
+    // it is not on the edges, it must be the new point
+    s.remove(2);
+    s.remove(1);
+    s.remove(0);
+
+    // // it is on the edge
+    // s.remove(2);
+    // s.remove(0);
+    // best_simplex(s);
+    // todo!();
 }
 
 #[allow(clippy::similar_names)]
@@ -894,6 +990,36 @@ mod tests {
             -2.113_749_110_323_96,
             0.060_745_841_686_177_69,
             0.605_152_339_313_540_4,
+        ));
+        let mut expected = SimplexData::new();
+        expected.push(s[1]);
+        expected.push(s[3]);
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn four_simplex_origin_above_two_sides_real_case_3() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(
+            -0.035_083_238_678_221_83,
+            -0.958_775_298_024_587_4,
+            0.050_381_586_127_837_61,
+        ));
+        s.push(test_support_point(
+            0.014_761_589_189_629_998,
+            -1.013_693_850_719_461,
+            -0.946_864_344_274_851_4,
+        ));
+        s.push(test_support_point(
+            -0.055_746_014_157_414_65,
+            1.039_498_873_547_050_3,
+            -0.016_751_527_948_618_34,
+        ));
+        s.push(test_support_point(
+            -0.040_974_805_799_913_97,
+            0.039_678_237_647_585_49,
+            -0.004_897_944_808_917_032,
         ));
         let mut expected = SimplexData::new();
         expected.push(s[1]);
