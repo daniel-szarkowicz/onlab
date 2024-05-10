@@ -1,4 +1,3 @@
-use core::panic;
 use std::collections::HashSet;
 use std::f32::consts::PI;
 

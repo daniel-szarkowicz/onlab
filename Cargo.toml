@@ -55,16 +55,15 @@ unused_import_braces = "warn"
 unused_lifetimes = "warn"
 unused_macro_rules = "warn"
 unused_qualifications = "warn"
-unused_tuple_struct_fields = "warn"
 variant_size_differences = "warn"
 
 
 [lints.clippy]
-pedantic = "warn"
+pedantic = { level = "warn", priority = -1 }
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
-nursery = "warn"
+nursery = {level = "warn", priority = -1 }
 cast_precision_loss = "allow"
 cast_possible_truncation = "allow"
 module_name_repetitions = "allow"
