@@ -47,13 +47,13 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
         let dist = closest_point.diff.magnitude();
         // dbg!(&s);
         // dbg!(closest_point.diff);
-        // debug_assert!(
-        //     dist <= prev_dist + TOLERANCE,
-        //     "prev_dist={prev_dist}, dist={dist}"
-        // );
         if s.len() == SIMPLEX_MAX_DIM {
             return epa(a, b, s.into_vec());
         }
+        debug_assert!(
+            dist <= prev_dist + TOLERANCE,
+            "prev_dist={prev_dist}, dist={dist}",
+        );
         // debug_assert!(
         //     dist > TOLERANCE,
         //     "if dist={dist} is smaller than TOLERANCE={TOLERANCE} \
@@ -1024,6 +1024,34 @@ mod tests {
         let mut expected = SimplexData::new();
         expected.push(s[1]);
         expected.push(s[3]);
+        best_simplex(&mut s);
+        assert_eq!(expected, s);
+    }
+
+    #[test]
+    fn four_simplex_origin_inside_real_case() {
+        let mut s = SimplexData::new();
+        s.push(test_support_point(
+            509.970_421_934_924_56,
+            0.005_723_304_010_416_541,
+            -489.485_535_577_129_3,
+        ));
+        s.push(test_support_point(
+            -491.010_899_366_064,
+            -0.000_834_457_491_427_187_4,
+            510.322_200_281_673_9,
+        ));
+        s.push(test_support_point(
+            -491.010_899_366_064,
+            -0.000_834_457_491_427_187_4,
+            -489.677_799_718_326_1,
+        ));
+        s.push(test_support_point(
+            508.989_100_633_936,
+            -0.000_834_457_491_427_187_4,
+            510.322_200_281_673_9,
+        ));
+        let expected = s.clone();
         best_simplex(&mut s);
         assert_eq!(expected, s);
     }
