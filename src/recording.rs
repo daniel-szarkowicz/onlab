@@ -8,7 +8,7 @@ use crate::object::Object;
 #[derive(Debug, Default)]
 struct RecordingData {
     position: Point3<f64>,
-    rotation: Rotation3<f64>,
+    rotation: (f64, f64, f64),
 }
 
 #[derive(Debug, Default)]
@@ -27,19 +27,25 @@ impl Recording {
         }
         self.data.extend(objects.into_iter().map(|o| RecordingData {
             position: o.position,
-            rotation: o.rotation,
+            rotation: o.rotation.euler_angles(),
         }));
         self.frame_count += 1;
     }
 
     pub fn load_frame_to(&self, frame_index: usize, objects: &mut [Object]) {
+        if self.frame_count == 0 {
+            return;
+        }
         let frame_index = frame_index.clamp(0, self.last_frame_index());
         let frame_start = frame_index * self.object_count;
         for (o, d) in objects.into_iter().zip(&self.data[frame_start..]) {
             o.position = d.position;
-            o.rotation = d.rotation;
+            o.rotation = Rotation3::from_euler_angles(
+                d.rotation.0,
+                d.rotation.1,
+                d.rotation.2,
+            );
         }
-        // load data from recording to objects
     }
 
     pub fn frame_count(&self) -> usize {
