@@ -51,6 +51,8 @@ pub struct MainScene {
     recording: Recording,
     selected_frame: usize,
     record: bool,
+    playback: bool,
+    loop_playback: bool,
 }
 
 impl MainScene {
@@ -107,6 +109,8 @@ impl MainScene {
             recording: Recording::default(),
             selected_frame: 0,
             record: false,
+            playback: false,
+            loop_playback: false,
         })
     }
 
@@ -528,6 +532,8 @@ impl MainScene {
             self.recording
                 .load_frame_to(self.selected_frame, &mut self.objects);
         };
+        ui.checkbox(&mut self.playback, "Playback");
+        ui.checkbox(&mut self.loop_playback, "Loop playback");
         if ui.button("Many things").clicked() {
             self.preset_many_things();
         }
@@ -711,19 +717,26 @@ impl Scene for MainScene {
         const TICK_RATE_TARGET: f64 = 100.0;
         const MAX_STEP_COUNT: u32 = 10;
         self.camera.update(delta as f32);
+        #[allow(clippy::cast_sign_loss)]
+        let step_count =
+            MAX_STEP_COUNT.min((delta * TICK_RATE_TARGET).abs().ceil() as u32);
+        let step_size =
+            f64::min(delta / f64::from(step_count), 1.0 / TICK_RATE_TARGET);
         if !self.paused {
-            #[allow(clippy::cast_sign_loss)]
-            let step_count = MAX_STEP_COUNT
-                .min((delta * TICK_RATE_TARGET).abs().ceil() as u32);
-            let step_size =
-                f64::min(delta / f64::from(step_count), 1.0 / TICK_RATE_TARGET);
             for _ in 0..step_count {
                 self.simulation.simulate(&mut self.objects, step_size);
+                if self.record {
+                    self.recording.save_frame_from(&self.objects);
+                }
             }
-            if self.record {
-                self.recording.save_frame_from(&self.objects);
-                self.selected_frame = self.recording.last_frame_index();
+            self.selected_frame = self.recording.last_frame_index();
+        } else if self.playback {
+            self.selected_frame += step_count as usize;
+            if self.loop_playback && self.recording.frame_count() > 0 {
+                self.selected_frame %= self.recording.frame_count();
             }
+            self.recording
+                .load_frame_to(self.selected_frame, &mut self.objects);
         }
     }
 
