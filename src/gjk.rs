@@ -41,7 +41,7 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
         &Vec3::new(random(), random(), random()),
     ));
     let mut prev_dist = f64::INFINITY;
-    let mut closest_point = closest_simplex::<false>(&mut s);
+    let mut closest_point = closest_simplex(&mut s);
     let mut dist_diff = 0.0;
     for _ in 0..GJK_MAX_ITER {
         let dist = closest_point.diff.magnitude();
@@ -68,7 +68,7 @@ pub fn gjk(a: &impl Support, b: &impl Support) -> GJKResult {
             return closest_point_to_contact(a, b, &closest_point);
         }
         s.push(new_point);
-        closest_point = closest_simplex::<false>(&mut s);
+        closest_point = closest_simplex(&mut s);
     }
     eprintln!(
         "gjk didn't converge in {GJK_MAX_ITER} steps \
@@ -410,20 +410,23 @@ fn closest_point_to_contact(
     }
 }
 
-fn closest_simplex<const DETCHECK: bool>(s: &mut SimplexData) -> SupportPoint {
+fn closest_simplex(s: &mut SimplexData) -> SupportPoint {
     best_simplex(s);
     match s.len() {
         0 => panic!("simplex has to contain at least 1 point"),
         1 => s[0],
-        2 if !DETCHECK => {
-            let t = (-s[1].diff.dot(&(s[0].diff - s[1].diff))
-                / (s[0].diff - s[1].diff).magnitude_squared())
-            .clamp(0.0, 1.0);
-            s[1] + t * &(s[0] - s[1])
+        2 => {
+            let ba = s[0] - s[1];
+            let t = -s[1].diff.dot(&ba.diff) / ba.diff.magnitude_squared();
+            debug_assert!(
+                (0.0..=1.0).contains(&t),
+                "invalid multiplier t = {t}"
+            );
+            s[1] + t * &ba
         }
-        2 => closest_simplex_static::<2, DETCHECK>(s),
-        3 => closest_simplex_static::<3, DETCHECK>(s),
-        4 => closest_simplex_static::<4, DETCHECK>(s),
+        // 2 => closest_simplex_static::<2>(s),
+        3 => closest_simplex_static::<3>(s),
+        4 => closest_simplex_static::<4>(s),
         // 4 => SupportPoint {
         //     diff: Vec3::zeros(),
         //     a: Vec3::zeros(),
@@ -432,9 +435,7 @@ fn closest_simplex<const DETCHECK: bool>(s: &mut SimplexData) -> SupportPoint {
     }
 }
 
-fn closest_simplex_static<const N: usize, const DETCHECK: bool>(
-    s: &mut SimplexData,
-) -> SupportPoint
+fn closest_simplex_static<const N: usize>(s: &mut SimplexData) -> SupportPoint
 where
     Const<N>: DimMin<Const<N>, Output = Const<N>>,
 {
@@ -445,15 +446,6 @@ where
         for j in 1..N {
             a.data.0[i][j] =
                 (s[i].diff - s[0].diff).dot(&(s[j].diff - s[0].diff));
-        }
-    }
-    if DETCHECK {
-        let det = a.determinant();
-        if det.abs() <= TOLERANCE {
-            debug_simplex_data(&*s);
-            panic!();
-            s.pop();
-            return closest_simplex::<DETCHECK>(s);
         }
     }
     let a_inverse = a.try_inverse().expect("a is invertible");
@@ -492,7 +484,7 @@ pub fn epa(
         tmp.push(points[*v1]);
         tmp.push(points[*v2]);
         tmp.push(points[*v3]);
-        let closest_point = closest_simplex::<true>(&mut tmp);
+        let closest_point = closest_simplex(&mut tmp);
         tmp.clear();
         closest_points.push(closest_point);
     }
@@ -580,7 +572,7 @@ pub fn epa(
             tmp.push(points[*v1]);
             tmp.push(points[*v2]);
             tmp.push(points[*v3]);
-            let closest_point = closest_simplex::<true>(&mut tmp);
+            let closest_point = closest_simplex(&mut tmp);
             tmp.clear();
             new_closest_points.push(closest_point);
         }
