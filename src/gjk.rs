@@ -425,8 +425,8 @@ fn closest_simplex(s: &mut SimplexData) -> SupportPoint {
             s[1] + t * &ba
         }
         // 2 => closest_simplex_static::<2>(s),
-        3 => closest_simplex_static::<3>(s),
-        4 => closest_simplex_static::<4>(s),
+        3 => closest_point_static::<3>(s),
+        4 => closest_point_static::<4>(s),
         // 4 => SupportPoint {
         //     diff: Vec3::zeros(),
         //     a: Vec3::zeros(),
@@ -435,7 +435,7 @@ fn closest_simplex(s: &mut SimplexData) -> SupportPoint {
     }
 }
 
-fn closest_simplex_static<const N: usize>(s: &mut SimplexData) -> SupportPoint
+fn closest_point_static<const N: usize>(s: &SimplexData) -> SupportPoint
 where
     Const<N>: DimMin<Const<N>, Output = Const<N>>,
 {
@@ -463,7 +463,7 @@ where
                 "invalid multiplier m={m}, should be >= 0"
             );
         })
-        .zip(&*s)
+        .zip(s)
         .map(|(t, v)| *t * v)
         .reduce(|a, b| a + b)
         .unwrap()
@@ -474,13 +474,11 @@ pub fn epa(
     b: &impl Support,
     mut points: Vec<SupportPoint>,
 ) -> GJKResult {
-    // eprintln!("============ START =============");
     debug_assert_eq!(points.len(), 4);
     let mut faces = vec![[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 2, 3]];
     let mut closest_points = vec![];
     let mut tmp = SimplexData::new();
     for [v1, v2, v3] in &faces {
-        // eprintln!("{v1}, {v2}, {v3}");
         tmp.push(points[*v1]);
         tmp.push(points[*v2]);
         tmp.push(points[*v3]);
@@ -490,11 +488,6 @@ pub fn epa(
     }
     let mut iter = 0;
     loop {
-        // eprintln!("---------- LOOP ----------");
-        // for point in &points {
-        //     eprintln!("{:?}", point.diff);
-        // }
-        // dbg!(&faces);
         let Some(minface) = closest_points
             .iter()
             .enumerate()
@@ -507,10 +500,6 @@ pub fn epa(
             return GJKResult::NoContact;
         };
         let new_point = SupportPoint::new(a, b, &closest_points[minface].diff);
-        // dbg!(&closest_points[minface].diff);
-        // dbg!(&new_point.diff);
-        // dbg!(new_point.diff.dot(&closest_points[minface].diff));
-        // dbg!(closest_points[minface].diff.magnitude_squared());
         debug_assert!(
             new_point.diff.magnitude()
                 >= closest_points[minface].diff.magnitude() - TOLERANCE,
@@ -523,7 +512,6 @@ pub fn epa(
             if iter == EPA_MAX_ITER {
                 eprintln!("epa max reached");
             }
-            // todo!("we have found the best, we can return");
             let b_point =
                 closest_points[minface].a - closest_points[minface].diff;
             return GJKResult::Contact {
@@ -531,9 +519,6 @@ pub fn epa(
                 normal: -closest_points[minface].diff.normalize(),
             };
         }
-        // todo!();
-        // remove faces that are "below" the new point
-        // collect the edges that only one of the removed faces had
         let mut edges = vec![];
         let mut i = 0;
         debug_assert_eq!(faces.len(), closest_points.len());
@@ -543,7 +528,6 @@ pub fn epa(
                 .dot(&(new_point.diff - closest_points[i].diff))
                 >= 0.0
             {
-                // eprintln!("removing face {i}");
                 edges.add_or_remove(minmax(faces[i][0], faces[i][1]));
                 edges.add_or_remove(minmax(faces[i][1], faces[i][2]));
                 edges.add_or_remove(minmax(faces[i][2], faces[i][0]));
@@ -555,20 +539,13 @@ pub fn epa(
         }
         debug_assert_eq!(faces.len(), closest_points.len());
 
-        // add new faces with the collected edges and the new point
-        // eprintln!("{edges:?}");
         let mut new_faces = vec![];
         for (i, j) in edges {
             new_faces.push([i, j, points.len()]);
-            // eprintln!("adding new face [{i}, {j}, new]");
         }
-        // eprintln!("{new_faces:#?}");
         points.push(new_point);
-        // debug_simplex_data(&points);
-        // calculate closest points for the new faces
         let mut new_closest_points = vec![];
         for [v1, v2, v3] in &new_faces {
-            // eprintln!("{v1}, {v2}, {v3}");
             tmp.push(points[*v1]);
             tmp.push(points[*v2]);
             tmp.push(points[*v3]);
@@ -642,6 +619,7 @@ fn minmax<T: Ord>(a: T, b: T) -> (T, T) {
     }
 }
 
+#[allow(unused)]
 fn debug_simplex_data<'a>(s: impl IntoIterator<Item = &'a SupportPoint>) {
     for (i, p) in s.into_iter().enumerate() {
         eprintln!("A_{i} = ({}, {}, {})", p.diff.x, p.diff.y, p.diff.z);
