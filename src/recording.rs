@@ -1,6 +1,3 @@
-#![allow(warnings)]
-
-use egui::Frame;
 use nalgebra::{Point3, Rotation3};
 
 use crate::object::Object;
@@ -25,7 +22,7 @@ impl Recording {
             self.frame_count = 0;
             self.object_count = objects.len();
         }
-        self.data.extend(objects.into_iter().map(|o| RecordingData {
+        self.data.extend(objects.iter().map(|o| RecordingData {
             position: o.position,
             rotation: o.rotation.euler_angles(),
         }));
@@ -38,7 +35,7 @@ impl Recording {
         }
         let frame_index = frame_index.clamp(0, self.last_frame_index());
         let frame_start = frame_index * self.object_count;
-        for (o, d) in objects.into_iter().zip(&self.data[frame_start..]) {
+        for (o, d) in objects.iter_mut().zip(&self.data[frame_start..]) {
             o.position = d.position;
             o.rotation = Rotation3::from_euler_angles(
                 d.rotation.0,
@@ -48,12 +45,14 @@ impl Recording {
         }
     }
 
-    pub fn frame_count(&self) -> usize {
+    #[must_use]
+    pub const fn frame_count(&self) -> usize {
         self.frame_count
     }
 
-    pub fn last_frame_index(&self) -> usize {
-        self.frame_count.checked_sub(1).unwrap_or(0)
+    #[must_use]
+    pub const fn last_frame_index(&self) -> usize {
+        self.frame_count.saturating_sub(1)
     }
 
     pub fn clear(&mut self) {
