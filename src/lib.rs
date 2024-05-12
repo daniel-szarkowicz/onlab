@@ -9,6 +9,7 @@ pub mod mesh;
 pub mod meshes;
 pub mod object;
 pub mod ray;
+pub mod recording;
 pub mod render_state;
 pub mod rtree;
 pub mod scene;

@@ -16,6 +16,7 @@ use crate::light::{self, DirectionalLight};
 use crate::mesh::{DrawMesh, Mesh};
 use crate::meshes;
 use crate::object::Object;
+use crate::recording::Recording;
 use crate::render_state::SetUniform;
 use crate::shader_program::ShaderProgram;
 use crate::simulation::Simulation;
@@ -47,6 +48,9 @@ pub struct MainScene {
     max_depth: usize,
     lights: Vec<DirectionalLight>,
     frozen_camera: Option<FirstPersonCamera>,
+    recording: Recording,
+    selected_frame: usize,
+    record: bool,
 }
 
 impl MainScene {
@@ -100,6 +104,9 @@ impl MainScene {
             max_depth: 5,
             lights: vec![DirectionalLight::new(ctx.gl.as_ref())],
             frozen_camera: None,
+            recording: Recording::default(),
+            selected_frame: 0,
+            record: false,
         })
     }
 
@@ -197,6 +204,7 @@ impl MainScene {
 
     fn preset_two_boxes(&mut self) {
         self.objects.clear();
+        self.recording.clear();
         self.objects.push(Object {
             position: Point3::new(0.0, 0.0, 0.0),
             rotation: Rotation3::new(Vector3::new(0.0, 0.0, 0.0)),
@@ -213,6 +221,7 @@ impl MainScene {
 
     fn preset_wrecking_ball(&mut self) {
         self.objects.clear();
+        self.recording.clear();
         for x in -7..=7 {
             for y in -7..=7 {
                 for z in 0..5 {
@@ -256,6 +265,7 @@ impl MainScene {
 
     fn preres_carpet_bomb(&mut self) {
         self.objects.clear();
+        self.recording.clear();
         for x in -50..=50 {
             for z in -50..=50 {
                 self.objects.push(Object {
@@ -297,6 +307,7 @@ impl MainScene {
 
     fn preset_spinning_ball(&mut self) {
         self.objects.clear();
+        self.recording.clear();
         for x in -5..=5 {
             for y in -5..=5 {
                 self.objects.push(Object {
@@ -321,6 +332,7 @@ impl MainScene {
 
     fn preset_rotating_board(&mut self) {
         self.objects.clear();
+        self.recording.clear();
         for x in -5..=5 {
             for y in -5..=5 {
                 self.objects.push(Object {
@@ -490,7 +502,32 @@ impl MainScene {
     #[allow(clippy::too_many_lines)]
     fn draw_ui(&mut self, ui: &mut Ui, gl: &glow::Context) {
         ui.set_min_width(200.0);
-        ui.checkbox(&mut self.paused, "Pause");
+        if ui.checkbox(&mut self.paused, "Pause").changed() {
+            if self.paused {
+                self.recording
+                    .load_frame_to(self.selected_frame, &mut self.objects);
+            } else {
+                self.recording.load_frame_to(
+                    self.recording.last_frame_index(),
+                    &mut self.objects,
+                );
+            }
+        }
+        ui.checkbox(&mut self.record, "Record");
+        if ui
+            .add_enabled(
+                self.paused,
+                DragValue::new(&mut self.selected_frame)
+                    .prefix("Recording frame: ")
+                    .clamp_range(0..=self.recording.frame_count())
+                    .speed(0.5),
+            )
+            .changed()
+            && self.paused
+        {
+            self.recording
+                .load_frame_to(self.selected_frame, &mut self.objects);
+        };
         if ui.button("Many things").clicked() {
             self.preset_many_things();
         }
@@ -678,9 +715,14 @@ impl Scene for MainScene {
             #[allow(clippy::cast_sign_loss)]
             let step_count = MAX_STEP_COUNT
                 .min((delta * TICK_RATE_TARGET).abs().ceil() as u32);
-            let step_size = delta / f64::from(step_count);
+            let step_size =
+                f64::min(delta / f64::from(step_count), 1.0 / TICK_RATE_TARGET);
             for _ in 0..step_count {
                 self.simulation.simulate(&mut self.objects, step_size);
+            }
+            if self.record {
+                self.recording.save_frame_from(&self.objects);
+                self.selected_frame = self.recording.last_frame_index();
             }
         }
     }
