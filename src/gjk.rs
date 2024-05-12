@@ -11,7 +11,7 @@ type Vec3 = Vector3<f64>;
 
 const TOLERANCE: f64 = 1e-7;
 const SIMPLEX_MAX_DIM: usize = 4;
-const EPA_MAX_ITER: usize = 1000;
+const EPA_MAX_ITER: usize = 10;
 const GJK_MAX_ITER: usize = 12;
 
 pub trait Support {
@@ -450,6 +450,8 @@ where
     if DETCHECK {
         let det = a.determinant();
         if det.abs() <= TOLERANCE {
+            debug_simplex_data(&*s);
+            panic!();
             s.pop();
             return closest_simplex::<DETCHECK>(s);
         }
@@ -486,6 +488,7 @@ pub fn epa(
     let mut closest_points = vec![];
     let mut tmp = SimplexData::new();
     for [v1, v2, v3] in &faces {
+        // eprintln!("{v1}, {v2}, {v3}");
         tmp.push(points[*v1]);
         tmp.push(points[*v2]);
         tmp.push(points[*v3]);
@@ -523,6 +526,7 @@ pub fn epa(
         if new_point.diff.dot(&closest_points[minface].diff)
             <= closest_points[minface].diff.magnitude_squared() + TOLERANCE
             || iter == EPA_MAX_ITER
+            || points.iter().any(|p| p.diff == new_point.diff)
         {
             if iter == EPA_MAX_ITER {
                 eprintln!("epa max reached");
@@ -560,15 +564,19 @@ pub fn epa(
         debug_assert_eq!(faces.len(), closest_points.len());
 
         // add new faces with the collected edges and the new point
+        // eprintln!("{edges:?}");
         let mut new_faces = vec![];
         for (i, j) in edges {
             new_faces.push([i, j, points.len()]);
             // eprintln!("adding new face [{i}, {j}, new]");
         }
+        // eprintln!("{new_faces:#?}");
         points.push(new_point);
+        // debug_simplex_data(&points);
         // calculate closest points for the new faces
         let mut new_closest_points = vec![];
         for [v1, v2, v3] in &new_faces {
+            // eprintln!("{v1}, {v2}, {v3}");
             tmp.push(points[*v1]);
             tmp.push(points[*v2]);
             tmp.push(points[*v3]);
@@ -639,6 +647,12 @@ fn minmax<T: Ord>(a: T, b: T) -> (T, T) {
         (a, b)
     } else {
         (b, a)
+    }
+}
+
+fn debug_simplex_data<'a>(s: impl IntoIterator<Item = &'a SupportPoint>) {
+    for (i, p) in s.into_iter().enumerate() {
+        eprintln!("A_{i} = ({}, {}, {})", p.diff.x, p.diff.y, p.diff.z);
     }
 }
 
